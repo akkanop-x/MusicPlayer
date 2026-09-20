@@ -6,10 +6,12 @@ import type { Db } from "./db/client.js";
 import { authRoutes, type AuthRoutesDeps } from "./routes/auth.routes.js";
 import { searchRoutes, type SearchRoutesDeps } from "./routes/search.routes.js";
 import { streamRoutes, type StreamRoutesDeps } from "./routes/stream.routes.js";
+import { playerRoutes, type PlayerRoutesDeps } from "./routes/player.routes.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { createSearchService } from "./services/SearchService.js";
 import { createStreamService } from "./services/StreamService.js";
 import { createAuthService } from "./services/auth/AuthService.js";
+import { createPlayerService } from "./services/PlayerService.js";
 import { LavalinkClient } from "./services/lavalink/LavalinkClient.js";
 import { ResolverClient } from "./services/resolver/ResolverClient.js";
 import {
@@ -29,6 +31,11 @@ import {
   revokeRefreshToken,
   revokeSeries,
 } from "./repositories/refreshTokens.repo.js";
+import {
+  findTrackDTO,
+  getUserSettings,
+  saveUserSettings,
+} from "./repositories/player.repo.js";
 
 export interface AppDeps {
   /** ไม่ส่งมา = ไม่ register search/auth/stream routes (ใช้ใน test ที่ไม่แตะ DB) */
@@ -39,6 +46,7 @@ export interface AppDeps {
   search?: SearchRoutesDeps["search"];
   auth?: AuthRoutesDeps;
   stream?: StreamRoutesDeps;
+  player?: PlayerRoutesDeps;
 }
 
 /** สร้าง Fastify instance — ใช้ทั้ง boot จริงและ unit test (fastify.inject) */
@@ -67,6 +75,21 @@ export function buildApp(
   if (deps.auth || deps.db) {
     const auth = deps.auth ?? realAuthDeps(env, deps.db as Db);
     app.register(authRoutes, { prefix: "/api/v1", ...auth });
+  }
+
+  if (deps.player || deps.db) {
+    const player =
+      deps.player ??
+      ({
+        jwtSecret: env.JWT_SECRET,
+        player: createPlayerService({
+          findTrack: (trackId) => findTrackDTO(deps.db as Db, trackId),
+          getSettings: (userId) => getUserSettings(deps.db as Db, userId),
+          saveSettings: (userId, patch) =>
+            saveUserSettings(deps.db as Db, userId, patch),
+        }),
+      } satisfies PlayerRoutesDeps);
+    app.register(playerRoutes, { prefix: "/api/v1", ...player });
   }
 
   if (deps.stream || deps.db) {

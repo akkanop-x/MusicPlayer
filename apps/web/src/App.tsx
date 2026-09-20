@@ -1,52 +1,79 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { hydrateSession } from "./api";
+import { useAuthStore } from "./stores/authStore";
+import LoginPage from "./pages/LoginPage";
+import HomePage from "./pages/HomePage";
+import { useToastStore } from "./stores/playerStore";
 
-/** Login placeholder — Phase 1 (ยังไม่ต่อ auth จริง; AuthService เป็นงาน Phase 2+) */
-export default function App() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+});
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    // TODO(Phase 2+): POST /api/v1/auth/login
+/** guard ให้หน้าหลักใช้ได้เมื่อมี access token (หรือ refresh สำเร็จ) */
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const token = useAuthStore((s) => s.accessToken);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!useAuthStore.getState().accessToken) {
+        const ok = await hydrateSession();
+        if (!ok && !cancelled) useAuthStore.getState().clear();
+      }
+      if (!cancelled) setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!token) {
+    return ready ? <Navigate to="/login" replace /> : null;
   }
+  return <>{children}</>;
+}
 
+function Toast() {
+  const message = useToastStore((s) => s.message);
+  const hide = useToastStore((s) => s.hide);
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(hide, 4_000);
+    return () => clearTimeout(t);
+  }, [message, hide]);
+  if (!message) return null;
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-neutral-100">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded-2xl bg-neutral-900 p-8 shadow-xl"
-      >
-        <h1 className="text-2xl font-semibold">MusicPlayer</h1>
-        <p className="text-sm text-neutral-400">
-          เข้าสู่ระบบ (placeholder — ฟีเจอร์จริงมาใน Phase ถัดไป)
-        </p>
-        <label className="block space-y-1">
-          <span className="text-sm">Email</span>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 outline-none focus:border-neutral-400"
+    <div
+      role="status"
+      data-testid="toast"
+      className="fixed bottom-24 left-1/2 -translate-x-1/2 rounded-lg bg-red-500/90 px-4 py-2 text-sm text-white shadow-lg"
+    >
+      {message}
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <HomePage />
+              </RequireAuth>
+            }
           />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-sm">รหัสผ่าน</span>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 outline-none focus:border-neutral-400"
-          />
-        </label>
-        <button
-          type="submit"
-          className="w-full rounded-lg bg-emerald-500 py-2 font-medium text-neutral-950 hover:bg-emerald-400"
-        >
-          เข้าสู่ระบบ
-        </button>
-      </form>
-    </main>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        <Toast />
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }

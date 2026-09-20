@@ -82,12 +82,21 @@ export const streamRoutes: FastifyPluginAsync<StreamRoutesDeps> = async (app, de
         .send(apiError("RATE_LIMITED", "Too many concurrent streams"));
     }
 
+    // release ต้องผูก**ตั้งแต่ก่อน openStream** — ไม่งั้น client กดเปลี่ยนเพลงรัว ๆ
+    // (abort ระหว่าง prebuffer 1–2 s) ทำให้ slot ค้างและ request ใหม่โดน 429
+    let released = false;
+    const releaseOnce = () => {
+      if (released) return;
+      released = true;
+      guard.release(userId);
+    };
+    request.raw.once("close", releaseOnce);
+
     try {
       const opened = await deps.openStream(trackId, request.headers.range);
-      reply.raw.on("close", () => guard.release(userId));
       return pipeToRaw(reply, request, opened);
     } catch (error) {
-      guard.release(userId);
+      releaseOnce();
       return toStreamError(reply, error);
     }
   });
