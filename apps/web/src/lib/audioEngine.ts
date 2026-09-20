@@ -15,9 +15,17 @@ import {
   transition,
   type PlayerContext,
   type PlayerStateDTO,
+  type PlayerStateChangedPayload,
   type TrackDTO,
+  type TrackStartedPayload,
 } from "@musicplayer/shared";
 import { playerApi, queueApi } from "../api";
+import {
+  isRealtimeConnected,
+  positionSync,
+  reportStalled,
+  reportTrackEnded,
+} from "../realtime/socketClient";
 import {
   useIntentStore,
   usePlayerStore,
@@ -36,6 +44,10 @@ export class AudioEngine {
   private playSeq = 0;
   /** generation counter ของ refreshQueue — กัน response เก่าทับ queue ใหม่ */
   private refreshSeq = 0;
+  /** ครั้งล่าสุดที่ส่ง POSITION_SYNC (websocket.md §4: ทุก 5 s ขณะเล่น) */
+  private lastSyncSentAt = 0;
+  /** จำนวน STALLED report ของ track ปัจจุบัน (server นับหน้าต่าง 30 s เองอีกชั้น) */
+  private stallAttempts = 0;
   /** expose เพื่อ test (element เดียวเสมอ — ห้ามสร้าง <audio> ที่ไหนอื่น) */
   get element(): HTMLAudioElement {
     return this.audio;
@@ -141,6 +153,17 @@ export class AudioEngine {
       // sync position กลับเข้า state machine — previous ใช้ตัดสิน restart vs pop history
       this.ctx.positionMs = this.currentPositionMs();
       stores().progress.setProgress(this.ctx.positionMs, durationMs);
+      // websocket.md §4: client ส่ง POSITION_SYNC ทุก 5 s ขณะเล่น
+      if (this.ctx.state === "PLAYING" && Date.now() - this.lastSyncSentAt > 5_000) {
+        this.sendPositionSync();
+      }
+    });
+    audio.addEventListener("stalled", () => {
+      const track = usePlayerStore.getState().track;
+      if (!track || !this.audio.src) return;
+      if (this.ctx.state !== "PLAYING" && this.ctx.state !== "BUFFERING") return;
+      this.stallAttempts += 1;
+      void reportStalled(track.id, this.currentPositionMs(), this.stallAttempts);
     });
     audio.addEventListener("ended", () => {
       this.ctx = transition(this.ctx, { type: "ENDED" });
@@ -157,6 +180,12 @@ export class AudioEngine {
 
   private currentPositionMs(): number {
     return Math.round(this.audio.currentTime * 1000);
+  }
+
+  /** id ของ track ที่ audio element กำลังโหลด/เล่น (จาก src ปลายทาง) */
+  private currentTrackId(): string | null {
+    const last = this.audio.src.split("/").pop() ?? "";
+    return last || null;
   }
 
   // ---------- คำสั่ง ----------
@@ -179,7 +208,8 @@ export class AudioEngine {
     if (!dto || seq !== this.playSeq) return;
 
     usePlayerStore.getState().setStateDto(dto);
-    this.startStream(track, dto);
+    // TRACK_STARTED broadcast อาจมาถึงก่อน REST response → src โหลดไปแล้ว ไม่ต้องรีโหลด
+    if (this.currentTrackId() !== track.id) this.startStream(track, dto);
     void this.refreshQueue();
   }
 
@@ -190,6 +220,7 @@ export class AudioEngine {
    */
   private startStream(track: TrackDTO, dto?: PlayerStateDTO): void {
     this.ctx = transition(this.ctx, { type: "LOAD", trackId: track.id });
+    this.stallAttempts = 0;
     const state = dto ?? usePlayerStore.getState();
     this.audio.src = this.streamUrl(track.id);
     this.audio.volume = state.muted ? 0 : state.volume / 100;
@@ -221,6 +252,7 @@ export class AudioEngine {
         .getState()
         .patchState({ state: "PAUSED", positionMs: this.ctx.positionMs });
     }
+    this.sendPositionSync();
   }
 
   async resume(): Promise<void> {
@@ -248,6 +280,7 @@ export class AudioEngine {
     }
     this.ctx = transition(this.ctx, { type: "SEEK", positionMs });
     this.audio.currentTime = positionMs / 1000;
+    this.sendPositionSync();
     void this.audio.play().catch(() => undefined);
   }
 
@@ -324,8 +357,17 @@ export class AudioEngine {
   }
 
   // ---------- events ปลายทาง ----------
-  /** เพลงจบเอง → advance ฝั่ง server (queue.md §5: repeat one replay / ดึง upcoming / จบ → IDLE) */
+  /**
+   * เพลงจบเอง → ถ้า WS ต่ออยู่ รายงาน TRACK_ENDED ผ่าน WS (server advance + broadcast
+   * TRACK_STARTED กลับมาเอง); ไม่ต่อ/timeout → fallback REST skip เดิม (websocket.md §5)
+   */
   private async handleEnded(): Promise<void> {
+    this.sendPositionSync();
+    const track = usePlayerStore.getState().track;
+    if (track && isRealtimeConnected()) {
+      const res = await reportTrackEnded(track.id, this.ctx.positionMs);
+      if (res?.ok) return;
+    }
     await this.skip("completed");
   }
 
@@ -357,6 +399,80 @@ export class AudioEngine {
     } catch {
       // ยังไม่ล็อกอิน — ไม่เป็นไร
     }
+  }
+
+  // ---------- realtime: server → client (websocket.md §3) ----------
+
+  /** POSITION_SYNC ออกจาก client (ทุก 5 s ขณะเล่น + ตอน pause/seek/ended) */
+  private sendPositionSync(): void {
+    this.lastSyncSentAt = Date.now();
+    void positionSync(this.currentPositionMs());
+    // ack ok:false → server emit POSITION_UPDATED กลับมา แล้ว applyRemotePosition จูนให้เอง
+  }
+
+  /** PLAYER_STATE_CHANGED จากอีก tab/อุปกรณ์ — ปรับเสียงให้ตรง (no-op ถ้าตรงกับสิ่งที่ tab นี้ทำอยู่) */
+  applyRemotePlayerState(p: PlayerStateChangedPayload): void {
+    const store = usePlayerStore.getState();
+    store.setStateDto({
+      ...store,
+      state: p.state,
+      track: p.track ?? store.track,
+      positionMs: p.positionMs,
+    });
+    if (p.state === "PLAYING") {
+      // เพลงใหม่ → รอ TRACK_STARTED จัดการโหลด (มาพร้อมกันเสมอ)
+      if (p.track && this.currentTrackId() !== p.track.id) return;
+      if (this.audio.src && this.audio.paused) {
+        this.ctx = transition(this.ctx, { type: "PLAYING" });
+        void this.audio.play().catch(() => undefined);
+      }
+      return;
+    }
+    if (p.state === "PAUSED" || p.state === "IDLE") {
+      if (this.ctx.state === "LOADING") {
+        // ยังโหลดไม่เสร็จ — เก็บ intent ไว้ pause ทันทีที่ canplay (#3)
+        this.ctx = { ...this.ctx, pauseWhenReady: true };
+      } else if (!this.audio.paused) {
+        this.audio.pause(); // media event 'pause' จะ transition ctx เอง
+      }
+      if (p.state === "IDLE") {
+        this.ctx = transition(this.ctx, { type: "STOP" });
+        this.teardownStream();
+        useIntentStore.getState().setPendingTrack(null);
+      }
+    }
+  }
+
+  /** TRACK_STARTED — โหลดเสียงใหม่ (remote เริ่มเพลง / server advance หลัง ended/stalled) */
+  applyTrackStarted(p: TrackStartedPayload): void {
+    const track = p.item.track;
+    const store = usePlayerStore.getState();
+    store.setStateDto({ ...store, track, state: "PLAYING", positionMs: 0 });
+    useIntentStore.getState().setPendingTrack(track);
+    useProgressStore.getState().setProgress(0, track.durationMs);
+    this.ctx.positionMs = 0;
+    if (this.currentTrackId() === track.id) return; // tab ผู้สั่ง — โหลดอยู่แล้ว
+    this.teardownStream();
+    this.startStream(track);
+  }
+
+  /** POSITION_UPDATED — ขยับเฉพาะเมื่อต่างจาก local เกิน 500 ms (websocket.md §3) */
+  applyRemotePosition(positionMs: number): void {
+    if (!this.audio.src || !Number.isFinite(positionMs)) return;
+    if (Math.abs(this.currentPositionMs() - positionMs) <= 500) return;
+    this.audio.currentTime = positionMs / 1000;
+    this.ctx.positionMs = positionMs;
+    useProgressStore
+      .getState()
+      .setProgress(positionMs, Math.round((this.audio.duration || 0) * 1000));
+  }
+
+  /** VOLUME_CHANGED จากอีก tab/อุปกรณ์ */
+  applyRemoteVolume(volume: number, muted: boolean): void {
+    this.audio.volume = muted ? 0 : volume / 100;
+    if (this.gainNode) this.gainNode.gain.value = muted ? 0 : volume / 100;
+    const store = usePlayerStore.getState();
+    store.setStateDto({ ...store, volume, muted });
   }
 }
 

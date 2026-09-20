@@ -20,7 +20,7 @@ export class ApiError extends Error {
 let refreshing: Promise<boolean> | null = null;
 
 /** พยายาม refresh access token ด้วย refresh cookie (ครั้งเดียวต่อ concurrent burst) */
-async function tryRefresh(): Promise<boolean> {
+export async function tryRefresh(): Promise<boolean> {
   refreshing ??= fetch(`${BASE}/auth/refresh`, { method: "POST" })
     .then(async (res) => {
       if (!res.ok) return false;

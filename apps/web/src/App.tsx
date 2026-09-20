@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { hydrateSession } from "./api";
+import { handleRealtimeEvent } from "./realtime/handlers";
+import {
+  connectRealtime,
+  disconnectRealtime,
+  setRealtimeHandler,
+} from "./realtime/socketClient";
 import { useAuthStore } from "./stores/authStore";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
@@ -58,6 +64,15 @@ function Toast() {
 }
 
 export default function App() {
+  // websocket.md — มี session แล้วเปิด socket (App เดียว ไม่ผูกกับ route → navigate ไม่หลุด);
+  // token refresh → handshake ใหม่; logout/session หมด → ปิด
+  const token = useAuthStore((s) => s.accessToken);
+  useEffect(() => {
+    setRealtimeHandler(handleRealtimeEvent);
+    if (token) connectRealtime();
+    else disconnectRealtime();
+  }, [token]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

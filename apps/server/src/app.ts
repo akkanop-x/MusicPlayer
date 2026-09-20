@@ -44,6 +44,8 @@ import {
   loadQueueSnapshot,
   saveQueueSnapshot,
 } from "./repositories/queueSnapshot.repo.js";
+import { RealtimeHub } from "./realtime/RealtimeHub.js";
+import { attachRealtime } from "./realtime/wsServer.js";
 
 export interface AppDeps {
   /** ไม่ส่งมา = ไม่ register search/auth/stream routes (ใช้ใน test ที่ไม่แตะ DB) */
@@ -57,6 +59,8 @@ export interface AppDeps {
   auth?: AuthRoutesDeps;
   stream?: StreamRoutesDeps;
   player?: PlayerRoutesDeps;
+  /** inject service-level repos (WS contract test) — buildApp สร้าง service + แปะ hub ให้เอง */
+  playerRepos?: Omit<import("./services/PlayerService.js").PlayerDeps, "broadcaster">;
 }
 
 /** สร้าง Fastify instance — ใช้ทั้ง boot จริงและ unit test (fastify.inject) */
@@ -87,10 +91,17 @@ export function buildApp(
     app.register(authRoutes, { prefix: "/api/v1", ...auth });
   }
 
-  if (deps.player || deps.db) {
+  if (deps.player || deps.playerRepos || deps.db) {
+    const hub = new RealtimeHub();
     const player =
       deps.player ??
       ((): PlayerRoutesDeps => {
+        if (deps.playerRepos) {
+          return {
+            jwtSecret: env.JWT_SECRET,
+            player: createPlayerService({ ...deps.playerRepos, broadcaster: hub }),
+          };
+        }
         return {
           jwtSecret: env.JWT_SECRET,
           player: createPlayerService({
@@ -101,9 +112,21 @@ export function buildApp(
             loadQueue: (userId) => loadQueueSnapshot(deps.db as Db, userId),
             saveQueue: (userId, snapshot) =>
               saveQueueSnapshot(deps.db as Db, userId, snapshot),
+            broadcaster: hub,
           }),
         };
       })();
+    // websocket.md — Socket.IO บน app.server เดียวกัน, path /ws, room user:{userId}
+    // Fastify สร้าง HTTP server จริงตอน listen → attach ใน onListen hook (engine.io
+    // ต้อง wrap request listener ของ server ที่ bind แล้วเท่านั้น)
+    // onListen hook: instance มาทาง `this` (fastify เรียก fn.call(server) ไม่ส่ง args)
+    app.addHook("onListen", async function (this: FastifyInstance) {
+      attachRealtime(this, {
+        jwtSecret: env.JWT_SECRET,
+        player: player.player,
+        hub,
+      });
+    });
     app.register(playerRoutes, { prefix: "/api/v1", ...player });
     // queue routes ใช้ player service อินสแตนซ์เดียวกัน (state ต่อ user ชุดเดียว)
     app.register(queueRoutes, {

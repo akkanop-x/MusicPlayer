@@ -9,9 +9,12 @@ import type {
   PlayerStateDTO,
   QueueItemDTO,
   QueueStateDTO,
+  RealtimeEventName,
   RepeatMode,
   TrackDTO,
 } from "@musicplayer/shared";
+import { RealtimeEvents } from "@musicplayer/shared";
+import type { Broadcaster } from "../realtime/RealtimeHub.js";
 import {
   addNext,
   addTracks,
@@ -78,10 +81,18 @@ export interface PlayerDeps {
   loadQueue(userId: string): Promise<QueueSnapshot | null>;
   /** persist queue หลังทุก mutation (fail-soft: พังแล้ว in-memory ยังตอบได้) */
   saveQueue(userId: string, snapshot: QueueSnapshot): Promise<void>;
+  /** websocket.md §3 — emit ไปยังทุก connection ของ user (RealtimeHub; ไม่ส่ง = ไม่มี realtime) */
+  broadcaster?: Broadcaster;
 }
 
 const RESTART_THRESHOLD_MS = 3_000; // player.md §3: previous เมื่อเล่นเกิน 3 s → เริ่มเพลงเดิมใหม่
 const QUEUE_CAP = 500; // queue.md §11: cap 500 items/user
+/** websocket.md §4 POSITION_SYNC: เดินหน้าไม่เร็วกว่า real-time × 1.2 (+ tolerance เผื่อ jitter) */
+const SYNC_SPEED_FACTOR = 1.2;
+const SYNC_TOLERANCE_MS = 1_500;
+/** websocket.md §4 TRACK_STALLED: รายงานครบ 3 ครั้งใน 30 s → exception + advance */
+const STALL_THRESHOLD = 3;
+const STALL_WINDOW_MS = 30_000;
 
 interface UserPlayer {
   ctx: PlayerContext;
@@ -89,10 +100,23 @@ interface UserPlayer {
   settings: PlayerSettings | null;
   originalPosition: number; // counter ของ originalPosition (monotonic ต่อ user)
   version: number;
+  /** POSITION_SYNC ล่าสุด — ใช้ตรวจความเร็ว (×1.2) และตัดสิน stale ภายหลัง (websocket.md §6) */
+  lastSync: { positionMs: number; at: number } | null;
+  /** timestamps ของ STALLED reports ที่ยังอยู่ในหน้าต่าง 30 s */
+  stalls: number[];
 }
 
 export function createPlayerService(deps: PlayerDeps) {
   const players = new Map<string, UserPlayer>();
+
+  /** websocket.md §3 — broadcast ไปทุก connection ของ user (RealtimeHub แนบ version ให้) */
+  function emit(
+    userId: string,
+    event: RealtimeEventName,
+    payload: Record<string, unknown>,
+  ): void {
+    deps.broadcaster?.emitToUser(userId, event, payload);
+  }
 
   function nextOriginalPosition(user: UserPlayer): number {
     user.originalPosition += 1;
@@ -125,6 +149,8 @@ export function createPlayerService(deps: PlayerDeps) {
         settings: await deps.getSettings(userId),
         originalPosition: 0,
         version: 0,
+        lastSync: null,
+        stalls: [],
       };
       players.set(userId, user);
       // restore จาก snapshot (restart backend → queue กลับมาแบบ PAUSED — player.md #7)
@@ -250,6 +276,26 @@ export function createPlayerService(deps: PlayerDeps) {
     };
   }
 
+  // ---------- realtime emissions (websocket.md §3) ----------
+  function itemDto(user: UserPlayer): { id: string; track: TrackDTO } | null {
+    return user.queue.current
+      ? { id: user.queue.current.id, track: user.queue.current.track }
+      : null;
+  }
+
+  /** ชุด event มาตรฐานตอน "เริ่มเพลงใหม่" (play/skip/previous) — websocket.md §3 */
+  function emitTrackStarted(user: UserPlayer, userId: string): void {
+    const item = itemDto(user);
+    if (!item) return;
+    emit(userId, RealtimeEvents.PlayerStateChanged, {
+      state: user.ctx.state,
+      track: item.track,
+      positionMs: user.ctx.positionMs,
+    });
+    emit(userId, RealtimeEvents.TrackStarted, { item, positionMs: 0 });
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
+  }
+
   async function getState(userId: string): Promise<PlayerStateDTO> {
     const user = await getUser(userId);
     return toStateDTO(user);
@@ -268,6 +314,7 @@ export function createPlayerService(deps: PlayerDeps) {
     user.version += 1;
     optimisticPlay(user, track);
     await persist(user, userId);
+    emitTrackStarted(user, userId);
     return toStateDTO(user);
   }
 
@@ -282,6 +329,11 @@ export function createPlayerService(deps: PlayerDeps) {
     }
     user.ctx = transition(user.ctx, { type: "PAUSE", positionMs: user.ctx.positionMs });
     await persist(user, userId);
+    emit(userId, RealtimeEvents.PlayerStateChanged, {
+      state: user.ctx.state,
+      track: user.queue.current?.track ?? null,
+      positionMs: user.ctx.positionMs,
+    });
     return toStateDTO(user);
   }
 
@@ -291,6 +343,11 @@ export function createPlayerService(deps: PlayerDeps) {
       throw new PlayerError("Player is not paused", "NOT_PAUSED");
     }
     user.ctx = transition(user.ctx, { type: "PLAYING" });
+    emit(userId, RealtimeEvents.PlayerStateChanged, {
+      state: user.ctx.state,
+      track: user.queue.current?.track ?? null,
+      positionMs: user.ctx.positionMs,
+    });
     return toStateDTO(user);
   }
 
@@ -319,6 +376,14 @@ export function createPlayerService(deps: PlayerDeps) {
       type: "SEEK",
       positionMs: clampSeek(user.ctx, positionMs),
     });
+    emit(userId, RealtimeEvents.PlayerStateChanged, {
+      state: user.ctx.state,
+      track: user.queue.current?.track ?? null,
+      positionMs: user.ctx.positionMs,
+    });
+    emit(userId, RealtimeEvents.PositionUpdated, {
+      positionMs: user.ctx.positionMs,
+    });
     return toStateDTO(user);
   }
 
@@ -339,6 +404,7 @@ export function createPlayerService(deps: PlayerDeps) {
     user.version += 1;
     optimisticPlay(user, played.track);
     await persist(user, userId);
+    emitTrackStarted(user, userId);
     return toQueueDTO(user);
   }
 
@@ -351,6 +417,7 @@ export function createPlayerService(deps: PlayerDeps) {
     if (!user.queue.current) throw new PlayerError("Nothing is playing", "NOT_PLAYING");
     if (user.ctx.positionMs > RESTART_THRESHOLD_MS) {
       user.ctx = transition(user.ctx, { type: "SEEK", positionMs: 0 });
+      emit(userId, RealtimeEvents.PositionUpdated, { positionMs: 0 });
       return toStateDTO(user);
     }
     const prev = queuePrevious(user.queue);
@@ -358,6 +425,7 @@ export function createPlayerService(deps: PlayerDeps) {
     user.version += 1;
     optimisticPlay(user, prev.track);
     await persist(user, userId);
+    emitTrackStarted(user, userId);
     return toStateDTO(user);
   }
 
@@ -365,6 +433,10 @@ export function createPlayerService(deps: PlayerDeps) {
     const user = await getUser(userId);
     user.settings = { ...user.settings!, volume, muted: volume === 0 };
     await deps.saveSettings(userId, { volume }).catch(() => undefined);
+    emit(userId, RealtimeEvents.VolumeChanged, {
+      volume: user.settings.volume,
+      muted: user.settings.muted,
+    });
     return toStateDTO(user);
   }
 
@@ -376,6 +448,11 @@ export function createPlayerService(deps: PlayerDeps) {
     user.settings = { ...user.settings!, repeatMode: mode };
     await deps.saveSettings(userId, { repeatMode: mode }).catch(() => undefined);
     await persist(user, userId);
+    emit(userId, RealtimeEvents.PlayerStateChanged, {
+      state: user.ctx.state,
+      track: user.queue.current?.track ?? null,
+      positionMs: user.ctx.positionMs,
+    });
     return toStateDTO(user);
   }
 
@@ -389,6 +466,12 @@ export function createPlayerService(deps: PlayerDeps) {
     user.version += 1;
     await deps.saveSettings(userId, { shuffle: enabled }).catch(() => undefined);
     await persist(user, userId);
+    emit(userId, RealtimeEvents.PlayerStateChanged, {
+      state: user.ctx.state,
+      track: user.queue.current?.track ?? null,
+      positionMs: user.ctx.positionMs,
+    });
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
     return toQueueDTO(user);
   }
 
@@ -422,6 +505,7 @@ export function createPlayerService(deps: PlayerDeps) {
     addTracks(user.queue, items);
     user.version += 1;
     await persist(user, userId);
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
     return toQueueDTO(user);
   }
 
@@ -436,6 +520,7 @@ export function createPlayerService(deps: PlayerDeps) {
     for (const item of items.reverse()) addNext(user.queue, item);
     user.version += 1;
     await persist(user, userId);
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
     return toQueueDTO(user);
   }
 
@@ -456,6 +541,7 @@ export function createPlayerService(deps: PlayerDeps) {
     }
     user.version += 1;
     await persist(user, userId);
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
     return toQueueDTO(user);
   }
 
@@ -470,6 +556,7 @@ export function createPlayerService(deps: PlayerDeps) {
     }
     user.version += 1;
     await persist(user, userId);
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
     return toQueueDTO(user);
   }
 
@@ -482,7 +569,115 @@ export function createPlayerService(deps: PlayerDeps) {
     if (scope === "all") user.ctx = { ...emptyCtx(), state: "IDLE" };
     user.version += 1;
     await persist(user, userId);
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
+    if (scope === "all") {
+      emit(userId, RealtimeEvents.PlayerStateChanged, {
+        state: user.ctx.state,
+        track: null,
+        positionMs: 0,
+      });
+    }
     return toQueueDTO(user);
+  }
+
+  // ---------- realtime client → server (websocket.md §4) ----------
+
+  /**
+   * POSITION_SYNC — client ส่งทุก 5 s ขณะเล่น + ตอน pause/seek/ended
+   * validate: เดินหน้าไม่เร็วกว่า real-time × 1.2 (+ tolerance), ≤ duration, ต้องมี current
+   * ผิด → คืน "rejected" (ws handler ตอบ ack แล้ว emit POSITION_UPDATED ให้ client กลับมาตรง)
+   */
+  function syncPosition(
+    userId: string,
+    positionMs: number,
+    now = Date.now(),
+  ): "ok" | "rejected" {
+    const user = players.get(userId);
+    if (!user || !user.queue.current) return "rejected";
+    if (!Number.isFinite(positionMs) || positionMs < 0) return "rejected";
+    const durationMs = user.ctx.durationMs;
+    if (durationMs !== null && positionMs > durationMs) return "rejected";
+
+    const playing = user.ctx.state === "PLAYING" || user.ctx.state === "BUFFERING";
+    if (playing && user.lastSync) {
+      const elapsed = now - user.lastSync.at;
+      const maxAllowed =
+        user.lastSync.positionMs + elapsed * SYNC_SPEED_FACTOR + SYNC_TOLERANCE_MS;
+      if (positionMs > maxAllowed) return "rejected";
+    }
+    user.ctx.positionMs = positionMs;
+    user.lastSync = { positionMs, at: now };
+    return "ok";
+  }
+
+  /** ชุด event ตอนจบคิว (ไม่มีเพลงถัดไป + repeat off) — websocket.md QUEUE_ENDED */
+  function emitQueueEnded(user: UserPlayer, userId: string): void {
+    user.ctx = { ...emptyCtx(), state: "IDLE" };
+    emit(userId, RealtimeEvents.QueueEnded, {});
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
+    emit(userId, RealtimeEvents.PlayerStateChanged, {
+      state: "IDLE",
+      track: null,
+      positionMs: 0,
+    });
+  }
+
+  /**
+   * TRACK_ENDED (client report) — ตรง current เท่านั้น → advance ("completed");
+   * คิวหมด (repeat off) → QUEUE_ENDED + IDLE แทนการ throw NO_NEXT
+   */
+  async function reportTrackEnded(
+    userId: string,
+    trackId: string,
+  ): Promise<{ ended: boolean }> {
+    const user = await getUser(userId);
+    if (user.queue.current?.track.id !== trackId) return { ended: false };
+    const played = queueAdvance(user.queue, "completed", user.settings!.repeatMode);
+    user.lastSync = null;
+    if (!played) {
+      emitQueueEnded(user, userId);
+      await persist(user, userId);
+      return { ended: true };
+    }
+    user.version += 1;
+    optimisticPlay(user, played.track);
+    await persist(user, userId);
+    emitTrackStarted(user, userId);
+    return { ended: true };
+  }
+
+  /**
+   * TRACK_STALLED — server นับต่อ user ในหน้าต่าง 30 s; ครบ 3 → TRACK_EXCEPTION + advance
+   * (advance ใช้ reason "skip" — เสียงยังไม่เคยเล่นจึงไม่นับเป็น completed)
+   */
+  async function reportStalled(
+    userId: string,
+    trackId: string,
+    now = Date.now(),
+  ): Promise<{ exception: boolean }> {
+    const user = await getUser(userId);
+    if (user.queue.current?.track.id !== trackId) return { exception: false };
+    user.stalls = user.stalls.filter((t) => now - t < STALL_WINDOW_MS);
+    user.stalls.push(now);
+    if (user.stalls.length < STALL_THRESHOLD) return { exception: false };
+    user.stalls = [];
+    const current = itemDto(user);
+    emit(userId, RealtimeEvents.TrackException, {
+      item: current,
+      code: "SOURCE_ERROR",
+      message: "เล่นเพลงนี้ไม่ได้ — เดินหน้าต่ออัตโนมัติ",
+    });
+    const played = queueAdvance(user.queue, "skip", user.settings!.repeatMode);
+    if (!played) {
+      emitQueueEnded(user, userId);
+      await persist(user, userId);
+      return { exception: true };
+    }
+    user.version += 1;
+    optimisticPlay(user, played.track);
+    await persist(user, userId);
+    emitTrackStarted(user, userId);
+    return { exception: true };
   }
 
   return {
@@ -502,6 +697,9 @@ export function createPlayerService(deps: PlayerDeps) {
     removeQueueItem,
     moveQueueItem,
     clear,
+    syncPosition,
+    reportTrackEnded,
+    reportStalled,
   };
 }
 
