@@ -12,7 +12,7 @@ export interface TrackDTO {
   isStream: boolean;
   isSeekable: boolean;
   artworkUrl: string | null;
-  /** youtube | spotify | http | local | … (จาก Lavalink sourceName) */
+  /** youtube | http | local | … (จาก Lavalink sourceName — Spotify ถูกถอดออก ADR-009) */
   sourceName: string;
   /** เติมตอนผู้ใช้ล็อกอิน (Phase 10) — Phase 2 เป็น false เสมอ */
   isLiked: boolean;

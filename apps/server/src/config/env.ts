@@ -15,9 +15,6 @@ const envSchema = z.object({
   REFRESH_SECRET: z.string().min(32),
   /** security.md §8.2 — default "*.googlevideo.com"; คั่นด้วย comma ได้ */
   SSRF_HOST_ALLOWLIST: z.string().optional(),
-  /** Spotify Web API (genre enrichment) — ไม่มีได้ (fail-soft, genres ว่าง) */
-  SPOTIFY_CLIENT_ID: z.string().optional(),
-  SPOTIFY_CLIENT_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

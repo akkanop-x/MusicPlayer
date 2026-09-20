@@ -44,14 +44,14 @@
 
 - ตั้ง Lavalink v4 จริงใน compose — **verify application.yml กับตัวอย่างของเวอร์ชันที่ pin** (ตาม lavalink.md §2.2)
 - **ติดตั้ง youtube-source plugin** (สำคัญ — source หลักของ MVP ตาม ADR-008)
-- **ติดตั้ง LavaSrc plugin + Spotify client credentials** (metadata/`spsearch` — grilling 2026-09-20)
+- ~~ติดตั้ง LavaSrc plugin + Spotify client credentials~~ **ถอดออก (2026-09-20 — [ADR-009](./adr/009-drop-spotify-youtube-only.md)): ใช้ youtube-source เท่านั้น**
 - `LavalinkClient`: loadtracks + decodetrack + timeout + circuit breaker + health check
 - Contract tests กับ mock Lavalink (fixture ทั้ง 5 loadType)
-- Smoke test กับ Lavalink container จริง (`GET /v4/info` ผ่าน + `ytsearch:` และ `spsearch:` คืนผลได้)
+- Smoke test กับ Lavalink container จริง (`GET /v4/info` ผ่าน + `ytmsearch:` คืนผลได้ — ADR-009)
 
 **Dependencies:** Phase 1
 
-**DoD:** `GET /api/v1/search?q=...` ตอบ TrackDTO จาก Lavalink (source: `ytsearch`/`ytmsearch`/`spsearch`) + upsert `tracks` ได้ + fail-soft เมื่อปิด Lavalink ได้ (503 + error ชัดเจน)
+**DoD:** `GET /api/v1/search?q=...` ตอบ TrackDTO จาก Lavalink (source: `ytsearch`/`ytmsearch` — ADR-009) + upsert `tracks` ได้ + fail-soft เมื่อปิด Lavalink ได้ (503 + error ชัดเจน)
 
 ## Phase 3 — Audio Pipeline (รวม YouTube playback — ตาม ADR-008)
 
@@ -61,7 +61,7 @@
 
 - **Resolver service แยก container** (yt-dlp based): trackId → stream URL + cache URL อายุสั้น (~60 s)
 - `StreamService`: in-memory proxy + Range/206 + **prebuffer 2–5 s** + SSRF guards (allowlist googlevideo hosts; soundcloud เพิ่มเมื่อทำ post-MVP) + **stream auth ด้วย session cookie**
-- **Genre enrichment จาก Spotify Web API** (artist genres → `tracks.genres`, cache) — YouTube ไม่มี genre tag (จำเป็นต่อ recommendation แนวเพลง)
+- **Genre enrichment จาก metadata ของ YouTube เอง** (yt-dlp categories/tags ตอน resolve stream → `tracks.genres`) — ถอด Spotify Web API ออกตาม [ADR-009](./adr/009-drop-spotify-youtube-only.md)
 - Integration test: Range correctness + SSRF suite + content-type allowlist + cookie auth (401 เมื่อไม่ล็อกอิน) + prebuffer behavior
 
 **Dependencies:** Phase 2 (ต้องมี tracks จาก ytsearch ก่อน)
@@ -99,18 +99,18 @@
 
 ## Phase 6 — Search
 
-**Goal:** Search เต็มรูปแบบ (YouTube/YTMusic + Spotify metadata + library ที่เคย resolve)
+**Goal:** Search เต็มรูปแบบ (YouTube/YTMusic + library ที่เคย resolve) — Spotify ถูกถอดออก ([ADR-009](./adr/009-drop-spotify-youtube-only.md))
 
 **Tasks:**
 
-- ytsearch/ytmsearch/**spsearch** integration + debounce UI + pagination
-- **Spotify playlist import** (วางลิงก์ playlist จาก Spotify → ได้ track ทั้งชุด, ผ่าน LavaSrc)
+- ytsearch/ytmsearch integration + debounce UI + pagination
+- ~~Spotify playlist import~~ ถอดออก ([ADR-009](./adr/009-drop-spotify-youtube-only.md)) — อาจกลับมาเป็น YouTube playlist import (วางลิงก์ playlist ของ YouTube) แทน
 - Search ภายใน library ที่เคย resolve (pg_trgm บน title/artist) รวมเข้าผลลัพธ์
 - Track page/detail + batch tracks endpoint
 
-**Dependencies:** Phase 2 (Lavalink + youtube-source + LavaSrc), Phase 1 (DB)
+**Dependencies:** Phase 2 (Lavalink + youtube-source), Phase 1 (DB)
 
-**DoD:** ค้นหาเจอจาก YouTube/YTMusic/Spotify, ผลลัพธ์จาก Spotify เล่นได้จริง (fallback ไป YouTube), P95 < 2 s
+**DoD:** ค้นหาเจอจาก YouTube/YTMusic และเล่นได้จริง, P95 < 2 s
 
 ## Phase 7 — WebSocket
 

@@ -48,7 +48,7 @@ Home feed ใช้ "liked + frequently played" เป็น seed หลัก; 
 - Diversity penalty ของ artist ซ้ำ (§2.2) ยังใช้อยู่ — ทำให้ "ต่างศิลปินแนวเดียวกัน" เกิดขึ้นจริง
 - **Fallback เมื่อ seed ไม่มี genre:** ใช้ genres ของเพลงที่ user เล่นจบบ่อยล่าสุด 10 เพลง (median ของ user taste) แทน; ถ้า user ยังไม่มี history เลย → คลาย constraint แล้วใช้ same artist/album แทน + บันทึก log ว่า fallback (เพื่อวัดว่าควรเติม genre data ตรงไหน)
 - Genre matching normalize ที่ application layer: lowercase + ตัดขีด/ช่องว่าง (เช่น "Hip-Hop" = "hip hop") ก่อนเทียบ — รายละเอียดใน database.md §Assumptions #3
-- **แหล่ง genre:** Spotify artist genres (grilling 2026-09-20 — ไม่ใช้ Last.fm) เติมให้ track ตอน resolve; เก็บ raw tags ไว้เพื่อเพิ่ม mapping layer ภายหลังได้ (ตัดสินใจทางเลือก C)
+- **แหล่ง genre:** metadata ของ YouTube เอง — yt-dlp `categories` + `tags` ตอน resolve stream (fire-and-forget, fail-soft) ตาม [ADR-009](./adr/009-drop-spotify-youtube-only.md); เก็บ raw tags ไว้เพื่อเพิ่ม mapping layer ภายหลังได้ (ตัดสินใจทางเลือก C — ยังใช้ได้เพราะยังเก็บ raw tags)
 
 ### 2.2 Scoring & Diversity
 

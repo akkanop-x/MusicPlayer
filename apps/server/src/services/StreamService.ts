@@ -27,6 +27,8 @@ export interface StreamDeps {
     id: string,
     meta: { streamUrl: string; contentType: string },
   ): Promise<void>;
+  /** genre enrichment จาก metadata ของ YouTube เอง (ADR-009) — resolver คืนมาพร้อม stream */
+  updateGenres(id: string, genres: string[]): Promise<void>;
   resolver: Pick<ResolverClient, "resolve">;
 }
 
@@ -98,6 +100,10 @@ export function createStreamService(
     urlCache.set(track.id, { expiresAt: Date.now() + config.urlCacheTtlMs, resolved });
     // persist ไว้ debug/re-resolve — database.md §2.2 (ไม่ return ให้ client เด็ดขาด)
     await deps.updateStreamMeta(track.id, resolved).catch(() => undefined);
+    // genre enrichment จาก YouTube metadata (ADR-009) — fire-and-forget ไม่ block stream
+    if (result.genres.length > 0) {
+      deps.updateGenres(track.id, result.genres).catch(() => undefined);
+    }
     return resolved;
   }
 

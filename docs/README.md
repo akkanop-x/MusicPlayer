@@ -11,7 +11,7 @@
 
 **MusicPlayer** คือ Web Music Player ที่ให้ประสบการณ์ใกล้เคียง Spotify / YouTube Music ทำงานใน Browser ทั้งหมด ผู้ใช้สามารถค้นหาเพลง เล่น ควบคุม playback (pause/resume/skip/previous/seek) จัดการ queue (shuffle/repeat/autoplay) จัดการ library (like/playlist/history) และปรับแต่งเสียงด้วย Equalizer
 
-**จุดเด่นทางเทคนิค:** ใช้ **Lavalink v4 เป็น Track Resolution & Search Service** และ **YouTube เป็น catalog หลักแบบ zero storage** (ไม่เก็บไฟล์เพลงลง server เลย — เสียงไหลผ่าน RAM เป็น proxy) โดยมี **Spotify เป็นแหล่ง metadata** (ค้นหา/playlist import/genre — ไม่มีเสียง) ส่วนการเล่นเสียงจริงเกิดที่ Browser ผ่าน Web Audio API (ดู [audio-pipeline.md](./audio-pipeline.md), [ADR-003](./adr/003-audio-pipeline.md), [ADR-008](./adr/008-youtube-first-no-local-storage.md))
+**จุดเด่นทางเทคนิค:** ใช้ **Lavalink v4 เป็น Track Resolution & Search Service** และ **YouTube เป็น catalog หลักแบบ zero storage** (ไม่เก็บไฟล์เพลงลง server เลย — เสียงไหลผ่าน RAM เป็น proxy) โดย metadata ทั้งหมดมาจาก **YouTube เอง** (ถอด Spotify ออกทั้งสแตก — [ADR-009](./adr/009-drop-spotify-youtube-only.md)) ส่วนการเล่นเสียงจริงเกิดที่ Browser ผ่าน Web Audio API (ดู [audio-pipeline.md](./audio-pipeline.md), [ADR-003](./adr/003-audio-pipeline.md), [ADR-008](./adr/008-youtube-first-no-local-storage.md))
 
 **ผู้ใช้เป้าหมาย:** ส่วนตัว/กลุ่มเล็ก **1–5 คน** — ทุก decision เชิง scale ตัดสินจากข้อนี้ (grilling 2026-09-20)
 
@@ -48,15 +48,15 @@ Backend (Node.js + Fastify + TypeScript)
 
 ## 4. Tech Stack (สรุป — รายละเอียดและเหตุผลอยู่ใน ADR)
 
-| Layer    | Technology                                                                                    | ADR                                                                                            |
-| -------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Language | TypeScript (monorepo: `apps/web`, `apps/server`)                                              | [ADR-001](./adr/001-use-typescript.md)                                                         |
-| Frontend | React + Vite + Tailwind CSS + Zustand + TanStack Query                                        | [ADR-005](./adr/005-state-management.md)                                                       |
-| Backend  | Node.js + Fastify + Socket.IO                                                                 | [ADR-004](./adr/004-websocket.md)                                                              |
-| Audio    | Lavalink v4 (metadata: YouTube+Spotify) + Resolver (yt-dlp, เสียงจาก YouTube) + Web Audio API | [ADR-003](./adr/003-audio-pipeline.md), [ADR-008](./adr/008-youtube-first-no-local-storage.md) |
-| Database | PostgreSQL + Drizzle ORM                                                                      | [ADR-002](./adr/002-use-postgresql.md)                                                         |
-| Auth     | Session: refresh token rotation (httpOnly cookie)                                             | [ADR-006](./adr/006-authentication.md)                                                         |
-| Infra    | Docker / Docker Compose (dev), Redis (optional)                                               | —                                                                                              |
+| Layer    | Technology                                                                                            | ADR                                                                                                                                               |
+| -------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language | TypeScript (monorepo: `apps/web`, `apps/server`)                                                      | [ADR-001](./adr/001-use-typescript.md)                                                                                                            |
+| Frontend | React + Vite + Tailwind CSS + Zustand + TanStack Query                                                | [ADR-005](./adr/005-state-management.md)                                                                                                          |
+| Backend  | Node.js + Fastify + Socket.IO                                                                         | [ADR-004](./adr/004-websocket.md)                                                                                                                 |
+| Audio    | Lavalink v4 (youtube-source, metadata: YouTube) + Resolver (yt-dlp, เสียงจาก YouTube) + Web Audio API | [ADR-003](./adr/003-audio-pipeline.md), [ADR-008](./adr/008-youtube-first-no-local-storage.md), [ADR-009](./adr/009-drop-spotify-youtube-only.md) |
+| Database | PostgreSQL + Drizzle ORM                                                                              | [ADR-002](./adr/002-use-postgresql.md)                                                                                                            |
+| Auth     | Session: refresh token rotation (httpOnly cookie)                                                     | [ADR-006](./adr/006-authentication.md)                                                                                                            |
+| Infra    | Docker / Docker Compose (dev), Redis (optional)                                                       | —                                                                                                                                                 |
 
 ## 5. Documentation Index
 

@@ -7,7 +7,6 @@ import type { LavalinkTrack, LoadResult } from "./lavalink/types.js";
 export const SEARCH_SOURCES = {
   yt: "ytsearch:",
   ytm: "ytmsearch:",
-  sp: "spsearch:",
 } as const;
 
 export type SearchSource = keyof typeof SEARCH_SOURCES;
@@ -21,10 +20,6 @@ export interface SearchDeps {
   /** ปกติ: (t) => upsertTrack(db, t) — inject เป็น function เพื่อให้ test ได้ seam ที่ไม่แตะ DB */
   upsertTrack: (track: TrackUpsert) => Promise<{ id: string; isNew?: boolean }>;
   lavalink: Pick<LavalinkClient, "loadTracks">;
-  /** genre enrichment (Phase 3) — เรียกแบบ fire-and-forget เฉพาะ track ใหม่ของ youtube */
-  enrichGenres?: (trackId: string, artist: string) => Promise<void>;
-  /** จำกัดจำนวน enrich ต่อ request กัน flood Spotify API */
-  enrichBudgetPerRequest?: number;
 }
 
 export interface SearchResult {
@@ -45,20 +40,9 @@ export function createSearchService(deps: SearchDeps) {
     const result = await deps.lavalink.loadTracks(`${prefix}${q}`);
     const lavalinkTracks = flattenLoadResult(result).slice(0, limit);
 
-    let enrichBudget = deps.enrichBudgetPerRequest ?? 3;
     const tracks: TrackDTO[] = [];
     for (const lavalinkTrack of lavalinkTracks) {
-      const { id, isNew } = await deps.upsertTrack(toUpsert(lavalinkTrack));
-      if (
-        isNew &&
-        lavalinkTrack.info.sourceName === "youtube" &&
-        deps.enrichGenres &&
-        enrichBudget > 0
-      ) {
-        enrichBudget -= 1;
-        // fire-and-forget — genre ไม่ใช่ critical path ของ search response (fail-soft)
-        deps.enrichGenres(id, lavalinkTrack.info.author).catch(() => undefined);
-      }
+      const { id } = await deps.upsertTrack(toUpsert(lavalinkTrack));
       tracks.push(toDTO(id, lavalinkTrack));
     }
 
@@ -120,7 +104,7 @@ function toDTO(id: string, track: LavalinkTrack): TrackDTO {
   };
 }
 
-/** LavaSrc (spsearch) ใส่ชื่ออัลบั้มไว้ที่ pluginInfo.albumName */
+/** source plugin บางตัวใส่ชื่ออัลบั้มไว้ที่ pluginInfo.albumName */
 function readAlbum(pluginInfo: Record<string, unknown> | undefined): string | null {
   const albumName = pluginInfo?.["albumName"];
   return typeof albumName === "string" && albumName.length > 0 ? albumName : null;

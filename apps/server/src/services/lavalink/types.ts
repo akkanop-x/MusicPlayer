@@ -21,7 +21,7 @@ export interface LavalinkTrackInfo {
 export interface LavalinkTrack {
   encoded: string;
   info: LavalinkTrackInfo;
-  /** LavaSrc: { albumName, albumUrl, artistUrl, previewUrl, isLocal } สำหรับ spsearch */
+  /** source plugin เฉพาะทาง เช่น { albumName } — แต่ละ plugin ใส่ต่างกัน */
   pluginInfo?: Record<string, unknown>;
   userData?: Record<string, unknown>;
 }

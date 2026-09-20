@@ -10,7 +10,6 @@ import { healthRoutes } from "./routes/health.routes.js";
 import { createSearchService } from "./services/SearchService.js";
 import { createStreamService } from "./services/StreamService.js";
 import { createAuthService } from "./services/auth/AuthService.js";
-import { createSpotifyWebApiService } from "./services/SpotifyWebApiService.js";
 import { LavalinkClient } from "./services/lavalink/LavalinkClient.js";
 import { ResolverClient } from "./services/resolver/ResolverClient.js";
 import {
@@ -52,8 +51,6 @@ export function buildApp(
     | "RESOLVER_URL"
     | "JWT_SECRET"
     | "REFRESH_SECRET"
-    | "SPOTIFY_CLIENT_ID"
-    | "SPOTIFY_CLIENT_SECRET"
   >,
   deps: AppDeps = {},
 ): FastifyInstance {
@@ -80,6 +77,7 @@ export function buildApp(
         const streamService = createStreamService({
           findTrackById: (id) => findTrackById(deps.db as Db, id),
           updateStreamMeta: (id, meta) => updateStreamMeta(deps.db as Db, id, meta),
+          updateGenres: (id, genres) => updateGenres(deps.db as Db, id, genres),
           resolver: deps.resolver ?? new ResolverClient({ baseUrl: env.RESOLVER_URL }),
         });
         return {
@@ -101,8 +99,6 @@ export function buildApp(
             password: env.LAVALINK_PASSWORD,
           }),
         upsertTrack: (track) => upsertTrack(deps.db as Db, track),
-        enrichGenres: (trackId, artist) =>
-          enrichGenre(deps.db as Db, env, trackId, artist),
       }).search;
     app.register(searchRoutes, { prefix: "/api/v1", search });
   }
@@ -152,19 +148,4 @@ function realAuthService(env: Pick<Env, "JWT_SECRET">, db: Db) {
 
 function realAuthDeps(env: Pick<Env, "JWT_SECRET">, db: Db): AuthRoutesDeps {
   return { ...realAuthService(env, db), jwtSecret: env.JWT_SECRET };
-}
-
-/** genre enrichment จาก Spotify Web API — fail-soft (ไม่มี credentials → ไม่ทำอะไร) */
-async function enrichGenre(
-  db: Db,
-  env: Pick<Env, "SPOTIFY_CLIENT_ID" | "SPOTIFY_CLIENT_SECRET">,
-  trackId: string,
-  artist: string,
-): Promise<void> {
-  const spotify = createSpotifyWebApiService({
-    clientId: env.SPOTIFY_CLIENT_ID,
-    clientSecret: env.SPOTIFY_CLIENT_SECRET,
-  });
-  const genres = await spotify.artistGenres(artist);
-  if (genres.length > 0) await updateGenres(db, trackId, genres);
 }

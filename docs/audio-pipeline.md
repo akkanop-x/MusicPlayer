@@ -184,7 +184,7 @@ YouTube ──(fetch)──► [ server RAM: prebuffer 2–5 s ] ──(pipe + R
 
 ## 11. Assumptions
 
-1. **Source หลักของ MVP = YouTube/YT Music ผ่าน Lavalink (search) + resolver (stream URL)**; **Spotify เป็นแหล่ง metadata เท่านั้น** (ค้นหาผ่าน LavaSrc `spsearch` — ตอนเล่นจริง fallback ไป YouTube); **SoundCloud เลื่อนออกจาก MVP** — ตัดสินใจโดยผู้ใช้ 2026-09-20 ([ADR-008](./adr/008-youtube-first-no-local-storage.md) + grilling session)
+1. **Source หลักของ MVP = YouTube/YT Music ผ่าน Lavalink (search) + resolver (stream URL)**; **metadata มาจาก YouTube เท่านั้น** (ถอด Spotify ออกทั้งสแตก 2026-09-20 — [ADR-009](./adr/009-drop-spotify-youtube-only.md)); **SoundCloud เลื่อนออกจาก MVP** — ตัดสินใจโดยผู้ใช้ 2026-09-20 ([ADR-008](./adr/008-youtube-first-no-local-storage.md) + grilling session)
 2. **ไม่มีการเก็บไฟล์เพลงลง disk ตลอดทั้งระบบ** — stream ผ่าน RAM เท่านั้น; local file ingest เป็น optional fallback (Phase 14)
 3. ผู้ฟังหนึ่งคนใช้ browser เดียวในเวลาเดียวกัน (MVP); ผู้ใช้ทั้งหมด 1–5 คน
 
@@ -204,15 +204,15 @@ YouTube ──(fetch)──► [ server RAM: prebuffer 2–5 s ] ──(pipe + R
 1. ~~Resolver ควรเป็น process pool ใน backend หรือ service แยก?~~ — **ตัดสินใจแล้ว (ADR-008): Docker container แยก** เพื่อ isolate CPU/dependency/crash
 2. ~~Preload เพลงถัดไปด้วย audio element ที่สอง?~~ — **เลื่อน (grilling 2026-09-20):** ทำเมื่อวัด gap แล้วรู้สึกแยกจริง — เพิ่ม Web Audio rewiring complexity
 3. ~~ต้อง normalize loudness ตอน ingest ไหม?~~ — ingest ไม่มีแล้ว (zero storage) → loudness ต่อเพลงจาก YouTube ต่างกันได้; ทางแก้ runtime คือ DynamicsCompressor ที่มีอยู่แล้วใน EQ chain (equalizer.md §7)
-4. ~~ย้าย search จาก Lavalink ไปให้ resolver ทำทั้งหมด?~~ — **ไม่ (grilling 2026-09-20):** คง Lavalink + LavaSrc เพราะได้ทั้ง YouTube/YTMusic และ Spotify metadata จากชุด contract เดียว
+4. ~~ย้าย search จาก Lavalink ไปให้ resolver ทำทั้งหมด?~~ — **ไม่ (grilling 2026-09-20):** คง Lavalink (youtube-source) เพราะได้ metadata ของ YouTube/YTMusic จากชุด contract เดียว; Spotify ถูกถอดออกภายหลัง ([ADR-009](./adr/009-drop-spotify-youtube-only.md))
 
 ## 14. Risks
 
-| Risk                                                              | ระดับ   | บรรเทา                                                                                                     |
-| ----------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
-| SSRF ผ่าน stream proxy                                            | สูง     | ออกแบบ guard ไว้ใน security.md §stream-proxy (allowlist, บล็อก private IP, resolve แล้วตรวจ IP ก่อน fetch) |
-| **YouTube extraction พัง = ไม่มีเพลงเล่นทั้งแอป** (single-source) | **สูง** | resolver แยก container อัปเดต dependency ง่าย + หน้า source status + local ingest เป็น fallback (Phase 14) |
-| Bandwidth ผ่าน backend ×2 (ทุกวินาทีที่ฟัง)                       | **สูง** | รับได้ใน MVP; trigger แก้: per-track RAM cache / CDN / self-hosted (ADR-008 §ประเมินใหม่)                  |
-| ถูก YouTube rate-limit/block IP จาก traffic จริง                  | กลาง    | rate limit ต่อ user + จำกัด concurrent streams ≤ 2 + prebuffer เท่านั้น (ห้าม fetch ทั้งเพลง)              |
-| YouTube ไม่มี genre tag → recommendation แนวเพลงพัง               | กลาง    | genre enrichment จาก Spotify Web API (artist genres, cache) — ผูกเป็น dependency ตั้งแต่ Phase 3           |
-| Safari MediaElementSource พฤติกรรมต่างจาก Chrome                  | กลาง    | มี E2E test ครอบ Safari (ดู testing.md)                                                                    |
+| Risk                                                              | ระดับ   | บรรเทา                                                                                                                                                                    |
+| ----------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SSRF ผ่าน stream proxy                                            | สูง     | ออกแบบ guard ไว้ใน security.md §stream-proxy (allowlist, บล็อก private IP, resolve แล้วตรวจ IP ก่อน fetch)                                                                |
+| **YouTube extraction พัง = ไม่มีเพลงเล่นทั้งแอป** (single-source) | **สูง** | resolver แยก container อัปเดต dependency ง่าย + หน้า source status + local ingest เป็น fallback (Phase 14)                                                                |
+| Bandwidth ผ่าน backend ×2 (ทุกวินาทีที่ฟัง)                       | **สูง** | รับได้ใน MVP; trigger แก้: per-track RAM cache / CDN / self-hosted (ADR-008 §ประเมินใหม่)                                                                                 |
+| ถูก YouTube rate-limit/block IP จาก traffic จริง                  | กลาง    | rate limit ต่อ user + จำกัด concurrent streams ≤ 2 + prebuffer เท่านั้น (ห้าม fetch ทั้งเพลง)                                                                             |
+| YouTube ไม่มี genre tag → recommendation แนวเพลงพัง               | กลาง    | genre enrichment จาก metadata ของ YouTube เอง (yt-dlp categories/tags ตอน resolve stream) — ไม่มี external dependency ([ADR-009](./adr/009-drop-spotify-youtube-only.md)) |
+| Safari MediaElementSource พฤติกรรมต่างจาก Chrome                  | กลาง    | มี E2E test ครอบ Safari (ดู testing.md)                                                                                                                                   |

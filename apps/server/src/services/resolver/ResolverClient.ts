@@ -12,6 +12,8 @@ export interface ResolvedStream {
   streamUrl: string;
   contentType: string;
   durationMs: number;
+  /** genre จาก metadata ของ YouTube เอง (yt-dlp categories/tags) — ว่างได้ */
+  genres: string[];
 }
 
 export class ResolverError extends Error {
@@ -92,6 +94,9 @@ export class ResolverClient {
       streamUrl: payload.streamUrl,
       contentType: payload.contentType ?? "application/octet-stream",
       durationMs: payload.durationMs ?? 0,
+      genres: Array.isArray(payload.genres)
+        ? payload.genres.filter((g): g is string => typeof g === "string")
+        : [],
     };
   }
 }

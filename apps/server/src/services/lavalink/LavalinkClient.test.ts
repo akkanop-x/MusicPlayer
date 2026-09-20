@@ -87,7 +87,7 @@ describe("LavalinkClient", () => {
   it("getInfo: คืน version/plugins", async () => {
     const info: LavalinkInfo = {
       version: { semver: "4.2.2", major: 4, minor: 2, patch: 2 },
-      sourceManagers: ["youtube", "spotify"],
+      sourceManagers: ["youtube"],
       plugins: [{ name: "youtube-plugin", version: "1.18.2" }],
     };
     handler = (req, res) => jsonResponse(res, 200, info);

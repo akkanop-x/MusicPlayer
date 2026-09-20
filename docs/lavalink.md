@@ -77,27 +77,26 @@ Backend (Node.js)
 
 ## 4. Required Plugins
 
-| Plugin             | Maven coordinate / repo                                                     | ทำไมต้องใช้                                                                                                                                                                                                     |
-| ------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **youtube-source** | `dev.lavalink.youtube:youtube-plugin` (repo `lavalink-devs/youtube-source`) | YouTube ถูกย้ายออกจาก Lavalink core แล้ว ต้องติดตั้งแยก จึงจะค้น `ytsearch:` / `ytmsearch:` ได้                                                                                                                 |
-| **LavaSrc**        | `com.github.topi314.LavaSrc:lavasrc-plugin`                                 | **Spotify metadata** (`spsearch:`) — ค้นหา/import playlist จาก Spotify และใช้เป็น metadata ที่ดีกว่า YouTube; ต้องมี Spotify client credentials ใน config; ตอนเล่นจริง fallback ไป YouTube (Spotify ไม่มีเสียง) |
+| Plugin             | Maven coordinate / repo                                                     | ทำไมต้องใช้                                                                                     |
+| ------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **youtube-source** | `dev.lavalink.youtube:youtube-plugin` (repo `lavalink-devs/youtube-source`) | YouTube ถูกย้ายออกจาก Lavalink core แล้ว ต้องติดตั้งแยก จึงจะค้น `ytsearch:` / `ytmsearch:` ได้ |
 
 - ติดตั้งผ่าน `application.yml` (ส่วน `plugins` ของ Lavalink v4 รองรับดาวน์โหลดอัตโนมัติตามที่ระบุ) หรือวาง .jar ใน plugins dir — ตาม README ของแต่ละ plugin
-- Spotify credentials เก็บใน env ของ Lavalink container — ห้าม hardcode (security.md)
+- ~~Spotify credentials~~ ถอด Spotify/LavaSrc ออกทั้งหมดแล้ว — เหลือ youtube-source plugin เดียว ([ADR-009](./adr/009-drop-spotify-youtube-only.md))
 - **หมายเหตุความจริง:** แม้ติด youtube-source แล้ว `loadtracks` ก็คืนแค่ metadata + `encoded` — **ไม่ใช่ stream URL** การเล่นใน browser ต้องผ่าน StreamService + resolver ของเราเสมอ ([ADR-008](./adr/008-youtube-first-no-local-storage.md)) — Lavalink ไม่เล่นเสียงจริงให้เราเลยแม้แต่เพลงเดียว (มันส่งเสียงได้ทางเดียว: Discord voice)
 
 ## 5. Source Support (ที่เกี่ยวข้องกับเรา)
 
 > **ตัดสินใจแล้ว (2026-09-20, [ADR-008](./adr/008-youtube-first-no-local-storage.md)):** YouTube/YTMusic เป็น **source หลักของ MVP** — Lavalink ใช้เฉพาะ search/metadata; การหา stream URL เพื่อเล่นเป็นหน้าที่ของ resolver service (แยก container) ไม่ใช่ Lavalink
 
-| Source prefix ใน identifier  | Source             | ใช้ใน MVP?                     | หมายเหตุ                                                                                       |
-| ---------------------------- | ------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `ytsearch:` / `ytmsearch:`   | YouTube / YT Music | ✅ **หลัก**                    | ต้องติดตั้ง youtube-source plugin (§4); stream URL มาจาก resolver                              |
-| `spsearch:`                  | Spotify            | ✅ (metadata เท่านั้น)         | ผ่าน LavaSrc — ค้นหา/import playlist; เสียงจริง fallback ไป YouTube; ต้องมี client credentials |
-| `scsearch:`                  | SoundCloud         | ⏸ หลัง MVP                     | **เลื่อนออกจาก MVP** (grilling 2026-09-20) — resolver ออกแบบ pluggable เพิ่มทีหลังได้          |
-| `bcsearch:` (Bandcamp)       | Bandcamp           | พิจารณา                        | —                                                                                              |
-| (ไม่มี prefix — ใส่ URL ตรง) | HTTP audio URL     | พิจารณา                        | ผ่าน resolver/proxy เสมอ                                                                       |
-| (ไม่มี prefix — local path)  | Local file         | ⏸ Phase 14 (optional fallback) | ingest จาก disk — ไม่ใช่ critical path ของ MVP                                                 |
+| Source prefix ใน identifier  | Source             | ใช้ใน MVP?                     | หมายเหตุ                                                                                        |
+| ---------------------------- | ------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `ytsearch:` / `ytmsearch:`   | YouTube / YT Music | ✅ **หลัก**                    | ต้องติดตั้ง youtube-source plugin (§4); stream URL มาจาก resolver                               |
+| `spsearch:`                  | Spotify            | ❌ ถอดออกแล้ว                  | LavaSrc ถูกถอดออกทั้งหมด — ใช้ YouTube ล้วน ([ADR-009](./adr/009-drop-spotify-youtube-only.md)) |
+| `scsearch:`                  | SoundCloud         | ⏸ หลัง MVP                     | **เลื่อนออกจาก MVP** (grilling 2026-09-20) — resolver ออกแบบ pluggable เพิ่มทีหลังได้           |
+| `bcsearch:` (Bandcamp)       | Bandcamp           | พิจารณา                        | —                                                                                               |
+| (ไม่มี prefix — ใส่ URL ตรง) | HTTP audio URL     | พิจารณา                        | ผ่าน resolver/proxy เสมอ                                                                        |
+| (ไม่มี prefix — local path)  | Local file         | ⏸ Phase 14 (optional fallback) | ingest จาก disk — ไม่ใช่ critical path ของ MVP                                                  |
 
 ## 6. REST API ที่ใช้ (ของจริงตาม lavalink.dev/api/rest.html)
 
@@ -179,5 +178,5 @@ Backend (Node.js)
 ## 10. Open Questions
 
 1. ~~เปิด SoundCloud ตั้งแต่ MVP หรือรอ?~~ — **ตัดสินใจแล้ว (grilling 2026-09-20): เลื่อนออกจาก MVP** — เพิ่มภายหลังผ่าน resolver แบบ pluggable
-2. ต้องใช้ LavaSearch (advanced search: artist/album grouping) ใน MVP ไหม? (ค่าเริ่มต้น: ไม่ — Spotify metadata + LavaSrc ตอบโจทย์ grouping ส่วนใหญ่แล้ว)
-3. ~~Genre enrichment จาก provider ไหม?~~ — **ตัดสินใจแล้ว (grilling 2026-09-20): Spotify Web API เท่านั้น** (genre ระดับ artist, cache ใน `tracks.genres`) — ไม่ใช้ Last.fm; รายละเอียดใน database.md / recommendation.md
+2. ต้องใช้ LavaSearch (advanced search: artist/album grouping) ใน MVP ไหม? (ค่าเริ่มต้น: ไม่)
+3. ~~Genre enrichment จาก provider ไหม?~~ — **ตัดสินใจแล้ว (grilling 2026-09-20): Spotify Web API เท่านั้น** (genre ระดับ artist, cache ใน `tracks.genres`) — ไม่ใช้ Last.fm; **แก้ไขแล้ว (ADR-009): ถอด Spotify Web API — ใช้ metadata ของ YouTube เอง (yt-dlp categories/tags) ตอน stream แทน**; รายละเอียดใน database.md / recommendation.md

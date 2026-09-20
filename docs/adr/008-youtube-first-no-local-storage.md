@@ -1,6 +1,6 @@
 # ADR-008: YouTube-first MVP — Zero Media Storage + Progressive Buffering
 
-- **สถานะ:** Accepted (ตัดสินใจโดยเจ้าของโปรเจกต์, 2026-09-20)
+- **สถานะ:** Accepted (ตัดสินใจโดยเจ้าของโปรเจกต์, 2026-09-20) — **ส่วนที่เกี่ยวกับ Spotify (Amendment ข้อ 2–4) ถูกยกเลิกโดย [ADR-009](./009-drop-spotify-youtube-only.md)**
 - **วันที่:** 2026-09-20
 - **เชื่อมโยง:** [ADR-003](./003-audio-pipeline.md) (audio pipeline หลัก), [ADR-007](./007-phase-b-youtube-source.md) (การยอมรับความเสี่ยง YouTube), [audio-pipeline.md](../audio-pipeline.md), [roadmap.md](../roadmap.md)
 

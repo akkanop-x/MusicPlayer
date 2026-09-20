@@ -72,6 +72,7 @@ function extract(identifier) {
             contentType: contentTypeForExt(info.ext),
             durationMs:
               typeof info.duration === "number" ? Math.round(info.duration * 1000) : 0,
+            genres: genresFor(info),
           });
         } catch (parseError) {
           reject(parseError);
@@ -104,6 +105,23 @@ function runNext() {
     const attempt = queue.shift();
     if (attempt()) break;
   }
+}
+
+/** genre จาก metadata ของ YouTube เอง (categories + tags) — เก็บดิบ lowercase/trim, จำกัด 15 ค่า */
+function genresFor(info) {
+  const categories = Array.isArray(info.categories) ? info.categories : [];
+  const tags = Array.isArray(info.tags) ? info.tags : [];
+  const seen = new Set();
+  const genres = [];
+  for (const raw of [...categories, ...tags]) {
+    if (typeof raw !== "string") continue;
+    const value = raw.trim().toLowerCase();
+    if (value.length === 0 || value.length > 50 || seen.has(value)) continue;
+    seen.add(value);
+    genres.push(value);
+    if (genres.length >= 15) break;
+  }
+  return genres;
 }
 
 function classifyExtractError(error) {

@@ -1,6 +1,6 @@
 /**
  * Smoke test กับ Lavalink container จริง — roadmap Phase 2
- * ใช้: docker compose up -d lavalink && pnpm --filter @musicplayer/server exec tsx scripts/smoke-lavalink.ts [query]
+ * ใช้: docker compose up -d lavalink && bun apps/server/scripts/smoke-lavalink.ts [query]
  */
 import { LavalinkClient } from "../src/services/lavalink/LavalinkClient.js";
 
@@ -42,28 +42,20 @@ async function main(): Promise<number> {
     failed = true;
   }
 
-  console.log(`[3/3] loadtracks spsearch:"${query}"`);
-  const sp = await client.loadTracks(`spsearch:${query}`);
-  if (sp.loadType === "search" || sp.loadType === "track") {
-    const tracks = sp.loadType === "search" ? sp.data : [sp.data];
-    console.log(`  loadType=${sp.loadType}, ${tracks.length} tracks`);
+  console.log(`[3/3] loadtracks ytmsearch:"${query}"`);
+  const ytm = await client.loadTracks(`ytmsearch:${query}`);
+  if (ytm.loadType === "search" || ytm.loadType === "track") {
+    const tracks = ytm.loadType === "search" ? ytm.data : [ytm.data];
+    console.log(`  loadType=${ytm.loadType}, ${tracks.length} tracks`);
     console.log(
-      `  first: "${tracks[0]?.info.title}" — ${tracks[0]?.info.author} (album: ${String(
-        tracks[0]?.pluginInfo?.["albumName"] ?? "-",
-      )})`,
+      `  first: "${tracks[0]?.info.title}" — ${tracks[0]?.info.author} (${tracks[0]?.info.sourceName})`,
     );
     if (tracks.length === 0) {
-      console.error("  FAIL: spsearch ไม่คืนผล");
+      console.error("  FAIL: ytmsearch ไม่คืนผล");
       failed = true;
     }
-  } else if (sp.loadType === "error") {
-    console.error("  FAIL (spsearch):", sp.data.message);
-    console.error(
-      "  → ต้องตั้ง SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET ใน .env แล้ว `docker compose up -d lavalink` ใหม่",
-    );
-    failed = true;
   } else {
-    console.error(`  FAIL: loadType=${sp.loadType}`);
+    console.error(`  FAIL: loadType=${ytm.loadType}`, ytm.data);
     failed = true;
   }
 

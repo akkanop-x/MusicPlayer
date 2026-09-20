@@ -27,9 +27,6 @@ services:
       - ./services/lavalink/application.yml:/opt/Lavalink/application.yml:ro
     environment:
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
-      # LavaSrc (spsearch) — ว่างได้ แต่ spsearch จะใช้ไม่ได้จนกว่าจะตั้งค่าจริงใน .env
-      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
-      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
     ports:
       - "2333:2333"
 
@@ -50,9 +47,6 @@ services:
       RESOLVER_URL: http://resolver:3002
       JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-32-chars!!}
       REFRESH_SECRET: ${REFRESH_SECRET:-dev-only-secret-change-me-32-chars!!}
-      # genre enrichment (Spotify Web API) — ไม่มีได้ แต่ genres จะว่าง
-      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
-      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
       CORS_ORIGIN: http://localhost:8080
     ports:
       - "3101:3001" # host 3101 (3001 บนเครื่อง dev อาจถูกใช้อยู่); ภายใน network ยังเป็น 3001

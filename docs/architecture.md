@@ -42,9 +42,9 @@
 ┌──────────┐ ┌─────────┐   ┌────────────┐      ┌──────────────┐
 │Lavalink  │ │PostgreSQL│  │ Resolver   │      │ Redis        │
 │v4 (JVM)  │ │          │  │ service    │      │ (optional,   │
-│+ LavaSrc │ │ source   │  │ (yt-dlp) → │      │  phase 13)   │
+│ youtube  │ │ source   │  │ (yt-dlp) → │      │  phase 13)   │
 │(metadata:│ │ of truth│  │ YouTube    │      │              │
-│yt+spotify│ └─────────┘  │ (zero disk)│      └──────────────┘
+│ youtube  │ └─────────┘  │ (zero disk)│      └──────────────┘
 └──────────┘              └────────────┘
 ```
 
@@ -75,13 +75,13 @@
 
 ### External
 
-| Component        | บทบาท                                                                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Lavalink v4      | **ใช้แค่ track resolution/search** — ไม่ใช่ตัวส่งเสียง (เหตุผล: ADR-003); มี **LavaSrc plugin** สำหรับ Spotify metadata (`spsearch`) |
-| Spotify Web API  | **Metadata เท่านั้น** — ค้นหา, playlist import, **genre enrichment** (artist genres); ไม่มีเสียง (grilling 2026-09-20)               |
-| Resolver service | แยก container (yt-dlp based): trackId → stream URL อายุสั้นของ YouTube ([ADR-008](./adr/008-youtube-first-no-local-storage.md))      |
-| PostgreSQL       | Source of truth ของ users, tracks, playlists, history, settings, queue snapshot                                                      |
-| Redis            | Optional: search cache, rate-limit counters, pub/sub สำหรับ multi-instance (phase 13)                                                |
+| Component           | บทบาท                                                                                                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lavalink v4         | **ใช้แค่ track resolution/search** — ไม่ใช่ตัวส่งเสียง (เหตุผล: ADR-003); มี **youtube-source plugin** เท่านั้น ([ADR-009](./adr/009-drop-spotify-youtube-only.md) — ถอด Spotify/LavaSrc ออก) |
+| ~~Spotify Web API~~ | ถอดออกทั้งหมด (2026-09-20) — genre enrichment ใช้ metadata ของ YouTube เอง ([ADR-009](./adr/009-drop-spotify-youtube-only.md))                                                                |
+| Resolver service    | แยก container (yt-dlp based): trackId → stream URL อายุสั้นของ YouTube ([ADR-008](./adr/008-youtube-first-no-local-storage.md))                                                               |
+| PostgreSQL          | Source of truth ของ users, tracks, playlists, history, settings, queue snapshot                                                                                                               |
+| Redis               | Optional: search cache, rate-limit counters, pub/sub สำหรับ multi-instance (phase 13)                                                                                                         |
 
 ## 3. Data Flow หลัก
 
@@ -167,7 +167,7 @@ Browser ── REST/WSS ──► Backend ──► PostgreSQL (hard dependency)
 
 1. Deployment เดียว (single region) ใน MVP
 2. **ผู้ใช้เป้าหมาย: ส่วนตัว/กลุ่มเล็ก 1–5 concurrent** (grilling 2026-09-20) — ไม่ออกแบบเพื่อ scale สาธารณะ; ดู trigger การขยายใน §6
-3. **ไม่มี media storage ในระบบเลย** (zero storage ตาม [ADR-008](./adr/008-youtube-first-no-local-storage.md)) — เพลงทั้งหมดสตรีมจาก YouTube ผ่าน RAM; Spotify ให้ metadata เท่านั้น
+3. **ไม่มี media storage ในระบบเลย** (zero storage ตาม [ADR-008](./adr/008-youtube-first-no-local-storage.md)) — เพลงทั้งหมดสตรีมจาก YouTube ผ่าน RAM; metadata ก็มาจาก YouTube เท่านั้น ([ADR-009](./adr/009-drop-spotify-youtube-only.md))
 
 ## 8. Open Questions
 

@@ -148,23 +148,6 @@ describe("GET /api/v1/search — contract ครบ 5 loadTypes", () => {
     await app.close();
   });
 
-  it("spsearch → album จาก pluginInfo.albumName + source mapping ถูก", async () => {
-    const { app, loadTracks } = makeHarness({
-      loadType: "search",
-      data: [track({ sourceName: "spotify", pluginInfo: { albumName: "Discovery" } })],
-    });
-    const res = await app.inject({
-      method: "GET",
-      url: "/api/v1/search?q=one%20more%20time&source=sp",
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json().sources.available).toEqual(["sp"]);
-    expect(res.json().tracks[0].album).toBe("Discovery");
-    expect(loadTracks).toHaveBeenCalledWith("spsearch:one more time");
-    await app.close();
-  });
-
   it("source=ytm → identifier เริ่มด้วย ytmsearch:", async () => {
     const { app, loadTracks } = makeHarness({ loadType: "empty", data: null });
     const res = await app.inject({
@@ -199,6 +182,7 @@ describe("GET /api/v1/search — contract ครบ 5 loadTypes", () => {
     ["/api/v1/search?q=test&limit=0", "limit น้อยกว่า 1"],
     ["/api/v1/search?q=test&limit=99", "limit มากกว่า 50"],
     ["/api/v1/search?q=test&source=dz", "source ไม่รู้จัก"],
+    ["/api/v1/search?q=test&source=sp", "source sp ถูกถอดออกแล้ว (ADR-009)"],
   ])("validation: %s (%s) → 400 VALIDATION_ERROR", async (url: string) => {
     const { app } = makeHarness({ loadType: "empty", data: null });
     const res = await app.inject({ method: "GET", url });

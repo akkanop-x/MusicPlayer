@@ -160,7 +160,7 @@
 2. ~~YouTube/SoundCloud extraction เป็น phase ถัดไป~~ **ตัดสินใจแล้ว (2026-09-20):** YouTube/YT Music เป็น **source หลักของ MVP** และ**ไม่มีการเก็บไฟล์เพลงลง server เลย** (zero storage, stream ผ่าน RAM เป็น proxy) — ดู [ADR-008](./adr/008-youtube-first-no-local-storage.md); local file ingest เหลือไว้เป็น optional fallback (Phase 14)
 3. **ผู้ใช้เป้าหมาย: ส่วนตัว/กลุ่มเล็ก 1–5 คน** (grilling 2026-09-20) — ทุก decision เชิง scale (partition, replica, CDN, anti-abuse) ตัดสินจากข้อนี้
 4. ผู้ฟัง 1 คน = 1 active player (multi-device sync ของจริงอยู่นอก MVP แต่ architecture ต้องไม่ปิดทาง)
-5. **Spotify = แหล่ง metadata/catalog เท่านั้น** (ค้นหา, playlist import, genre enrichment ผ่าน LavaSrc + Spotify Web API) — เสียงจริงมาจาก YouTube เสมอ (grilling 2026-09-20); SoundCloud เลื่อนออกจาก MVP
+5. **metadata/catalog จาก YouTube เท่านั้น** — ถอด Spotify (LavaSrc + Web API) ออกทั้งสแตก 2026-09-20 เพราะ Spotify Web API บังคับ Premium ของเจ้าของ app; genre enrichment ใช้ metadata ของ YouTube เอง ([ADR-009](./adr/009-drop-spotify-youtube-only.md)); SoundCloud เลื่อนออกจาก MVP
 
 ## Decisions (จากผู้ใช้ — grilling session 2026-09-20)
 

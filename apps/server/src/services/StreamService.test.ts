@@ -21,12 +21,14 @@ function makeDeps(
       streamUrl: "http://127.0.0.1:0/not-used",
       contentType: "audio/webm",
       durationMs: 213_000,
+      genres: [],
       ...r,
     } as ResolvedStream;
   });
   const deps: StreamDeps = {
     findTrackById: vi.fn(async (id: string) => (id === track.id ? track : undefined)),
     updateStreamMeta: vi.fn(async () => undefined),
+    updateGenres: vi.fn(async () => undefined),
     resolver: { resolve },
     ...overrides,
   };
@@ -118,7 +120,7 @@ describe("StreamService", () => {
     const { deps } = makeDeps();
     deps.resolver.resolve = vi.fn(async () => {
       calls++;
-      return { streamUrl: url, contentType: "audio/webm", durationMs: 1 };
+      return { streamUrl: url, contentType: "audio/webm", durationMs: 1, genres: [] };
     });
     const service = createStreamService(deps, { ssrf: ssrfOptions, prebufferBytes: 1 });
     const id = "11111111-1111-1111-1111-111111111111";
@@ -213,6 +215,39 @@ describe("StreamService", () => {
       "11111111-1111-1111-1111-111111111111",
       expect.objectContaining({ streamUrl: url, contentType: "audio/webm" }),
     );
+    await stopUpstream();
+  });
+
+  it("resolver คืน genres → updateGenres ถูกเรียก (fire-and-forget, ADR-009)", async () => {
+    const url = await startUpstream((req, res) => {
+      res.writeHead(200, { "content-type": "audio/webm" });
+      res.end("x");
+    });
+    const { deps } = makeDeps({
+      resolveResult: { streamUrl: url, genres: ["music", "pop"] },
+    });
+    const service = createStreamService(deps, { ssrf: ssrfOptions, prebufferBytes: 1 });
+    const opened = await service.openStream("11111111-1111-1111-1111-111111111111");
+    await readAll(opened.stream);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(deps.updateGenres).toHaveBeenCalledWith(
+      "11111111-1111-1111-1111-111111111111",
+      ["music", "pop"],
+    );
+    await stopUpstream();
+  });
+
+  it("resolver ไม่คืน genres → updateGenres ไม่ถูกเรียก", async () => {
+    const url = await startUpstream((req, res) => {
+      res.writeHead(200, { "content-type": "audio/webm" });
+      res.end("x");
+    });
+    const { deps } = makeDeps({ resolveResult: { streamUrl: url } });
+    const service = createStreamService(deps, { ssrf: ssrfOptions, prebufferBytes: 1 });
+    const opened = await service.openStream("11111111-1111-1111-1111-111111111111");
+    await readAll(opened.stream);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(deps.updateGenres).not.toHaveBeenCalled();
     await stopUpstream();
   });
 });
