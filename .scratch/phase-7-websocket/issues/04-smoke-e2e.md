@@ -19,7 +19,8 @@ Status: resolved
     SYNC_REQUEST → ได้ QUEUE_UPDATED (resync), เสียงเดินต่อ 196 s ไม่หยุด
   - ทดสอบเสริม `__rt.simulateNetworkDrop()` (engine.close — transport ตายแบบ network จริง,
     server ยังอยู่): reconnect + resync ภายใน ~1 s, เสียงเล่นต่อ 73→95 s
-- CI: run (กรอกหลัง push) success
+- CI: run 35521896600 success (f9cc361 → d661c37; run แรก 35521829957 ตก format:check
+  เพราะแก้โค้ดหลังรัน prettier — เพิ่ม `bun run format` ก่อน commit ทุกครั้ง)
 
 ## Lessons learned
 
