@@ -9,11 +9,13 @@ import { tracksRoutes, type TracksRoutesDeps } from "./routes/tracks.routes.js";
 import { streamRoutes, type StreamRoutesDeps } from "./routes/stream.routes.js";
 import { playerRoutes, type PlayerRoutesDeps } from "./routes/player.routes.js";
 import { queueRoutes } from "./routes/queue.routes.js";
+import { eqRoutes } from "./routes/eq.routes.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { createSearchService } from "./services/SearchService.js";
 import { createStreamService } from "./services/StreamService.js";
 import { createAuthService } from "./services/auth/AuthService.js";
 import { createPlayerService } from "./services/PlayerService.js";
+import { createEqService, type EqService } from "./services/EqService.js";
 import { LavalinkClient } from "./services/lavalink/LavalinkClient.js";
 import { ResolverClient } from "./services/resolver/ResolverClient.js";
 import {
@@ -61,6 +63,8 @@ export interface AppDeps {
   player?: PlayerRoutesDeps;
   /** inject service-level repos (WS contract test) — buildApp สร้าง service + แปะ hub ให้เอง */
   playerRepos?: Omit<import("./services/PlayerService.js").PlayerDeps, "broadcaster">;
+  /** inject ฝั่ง eq endpoints (contract test) — hub buildApp สร้างเอง */
+  eq?: EqService;
 }
 
 /** สร้าง Fastify instance — ใช้ทั้ง boot จริงและ unit test (fastify.inject) */
@@ -84,6 +88,9 @@ export function buildApp(
   // จำเป็นสำหรับอ่าน/เขียน cookie (refresh token — security.md §1, §8.6)
   app.register(cookie);
 
+  // hub ตัวเดียวต่อ app — player service และ eq routes ใช้ร่วมกัน (version ต่อ user ชุดเดียว)
+  const hub = new RealtimeHub();
+
   app.register(healthRoutes);
 
   if (deps.auth || deps.db) {
@@ -92,7 +99,6 @@ export function buildApp(
   }
 
   if (deps.player || deps.playerRepos || deps.db) {
-    const hub = new RealtimeHub();
     const player =
       deps.player ??
       ((): PlayerRoutesDeps => {
@@ -133,6 +139,15 @@ export function buildApp(
       prefix: "/api/v1",
       jwtSecret: player.jwtSecret,
       player: player.player,
+    });
+  }
+
+  if (deps.eq || deps.db) {
+    app.register(eqRoutes, {
+      prefix: "/api/v1",
+      jwtSecret: env.JWT_SECRET,
+      eq: deps.eq ?? createEqService(deps.db as Db),
+      hub,
     });
   }
 

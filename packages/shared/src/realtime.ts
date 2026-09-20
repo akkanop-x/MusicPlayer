@@ -16,6 +16,8 @@ export const RealtimeEvents = {
   QueueEnded: "QUEUE_ENDED",
   PositionUpdated: "POSITION_UPDATED",
   VolumeChanged: "VOLUME_CHANGED",
+  /** Phase 8 — equalizer.md §5 (active preset เปลี่ยน / preset ที่ active ถูกแก้-ลบ) */
+  EqChanged: "EQ_CHANGED",
 } as const;
 
 export type RealtimeEventName = (typeof RealtimeEvents)[keyof typeof RealtimeEvents];
@@ -68,8 +70,8 @@ export interface VolumeChangedPayload extends RealtimeEnvelope {
 }
 
 /**
- * EQ_CHANGED / LIKES_CHANGED (websocket.md §3) — ยังไม่มีจุด emit:
- * EQ เป็น Phase 8, likes เป็น Phase 10 — type ประกาศล่วงหน้าให้ client เตรียม handler
+ * LIKES_CHANGED (websocket.md §3) — ยังไม่มีจุด emit: likes เป็น Phase 10
+ * (EQ_CHANGED ทำงานแล้วตั้งแต่ Phase 8 — ประกาศรวมไว้ที่ EqChangedPayload)
  */
 export interface EqChangedPayload extends RealtimeEnvelope {
   presetId: string | null;

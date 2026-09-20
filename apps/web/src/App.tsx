@@ -9,9 +9,11 @@ import {
   setRealtimeHandler,
 } from "./realtime/socketClient";
 import { useAuthStore } from "./stores/authStore";
+import { refreshEqFromServer } from "./stores/eqStore";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import TrackPage from "./pages/TrackPage";
+import SettingsPage from "./pages/SettingsPage";
 import { useToastStore } from "./stores/playerStore";
 
 const queryClient = new QueryClient({
@@ -69,8 +71,13 @@ export default function App() {
   const token = useAuthStore((s) => s.accessToken);
   useEffect(() => {
     setRealtimeHandler(handleRealtimeEvent);
-    if (token) connectRealtime();
-    else disconnectRealtime();
+    if (token) {
+      connectRealtime();
+      // equalizer.md §5 — โหลด EQ ตั้งแต่ boot เพื่อให้เสียงแรกมี EQ ถูกต้อง
+      void refreshEqFromServer();
+    } else {
+      disconnectRealtime();
+    }
   }, [token]);
 
   return (
@@ -91,6 +98,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <TrackPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <RequireAuth>
+                <SettingsPage />
               </RequireAuth>
             }
           />

@@ -30,14 +30,23 @@ export default function HomePage() {
     <main className="flex min-h-screen flex-col bg-neutral-950 text-neutral-100">
       <header className="flex items-center justify-between px-6 py-4">
         <h1 className="text-lg font-semibold">MusicPlayer</h1>
-        <button
-          onClick={() => {
-            void authApi.logout().finally(() => window.location.assign("/login"));
-          }}
-          className="text-sm text-neutral-400 hover:text-neutral-200"
-        >
-          ออกจากระบบ
-        </button>
+        <div className="flex items-center gap-4">
+          <Link
+            to="/settings"
+            data-testid="settings-link"
+            className="text-sm text-neutral-400 hover:text-neutral-200"
+          >
+            ตั้งค่า
+          </Link>
+          <button
+            onClick={() => {
+              void authApi.logout().finally(() => window.location.assign("/login"));
+            }}
+            className="text-sm text-neutral-400 hover:text-neutral-200"
+          >
+            ออกจากระบบ
+          </button>
+        </div>
       </header>
 
       <section className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-6 pb-40">

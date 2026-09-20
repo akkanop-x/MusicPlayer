@@ -5,6 +5,7 @@
  */
 import {
   RealtimeEvents,
+  type EqChangedPayload,
   type PlayerStateChangedPayload,
   type PositionUpdatedPayload,
   type QueueStateDTO,
@@ -14,6 +15,7 @@ import {
 } from "@musicplayer/shared";
 import { getAudioEngine } from "../lib/audioEngine";
 import { usePlayerStore, useQueueStore, useToastStore } from "../stores/playerStore";
+import { useEqStore } from "../stores/eqStore";
 
 let lastVersion = 0;
 
@@ -58,6 +60,14 @@ export function handleRealtimeEvent(
     case RealtimeEvents.QueueEnded:
       usePlayerStore.getState().patchState({ state: "IDLE" });
       break;
+    case RealtimeEvents.EqChanged: {
+      // equalizer.md §5 — อีก tab/อุปกรณ์เปลี่ยน active preset → apply ตาม
+      const eq = payload as unknown as EqChangedPayload;
+      useEqStore.getState().setActive(eq.presetId, eq.bands);
+      useEqStore.getState().setDraft(null);
+      engine.applyEq(eq.bands);
+      break;
+    }
     // TRACK_ENDED: server advance แล้ว — TRACK_STARTED/QUEUE_UPDATED ตามมาเอง
   }
 }

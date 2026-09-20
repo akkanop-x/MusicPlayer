@@ -18,6 +18,7 @@ export const ERROR_CODES = [
   "NO_NEXT",
   "NO_PREVIOUS",
   "ITEM_IS_CURRENT",
+  "EQ_PRESET_NAME_TAKEN",
   "INTERNAL",
 ] as const;
 
@@ -57,5 +58,6 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   NO_NEXT: 409,
   NO_PREVIOUS: 409,
   ITEM_IS_CURRENT: 409,
+  EQ_PRESET_NAME_TAKEN: 409,
   INTERNAL: 500,
 };

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RealtimeEvents } from "@musicplayer/shared";
 import { usePlayerStore, useQueueStore, useToastStore } from "../stores/playerStore";
+import { _resetEqStoreForTests, useEqStore } from "../stores/eqStore";
 import { _resetRealtimeForTests, handleRealtimeEvent } from "./handlers";
 
 const { engineCalls, fakeEngine } = vi.hoisted(() => {
@@ -14,6 +15,7 @@ const { engineCalls, fakeEngine } = vi.hoisted(() => {
       engineCalls.push({ fn: "applyRemotePosition", arg: p }),
     applyRemoteVolume: (v: unknown, m: unknown) =>
       engineCalls.push({ fn: "applyRemoteVolume", arg: [v, m] }),
+    applyEq: (b: unknown) => engineCalls.push({ fn: "applyEq", arg: b }),
   };
   return { engineCalls, fakeEngine };
 });
@@ -39,6 +41,7 @@ const T1 = {
 beforeEach(() => {
   _resetRealtimeForTests();
   engineCalls.length = 0;
+  _resetEqStoreForTests();
   useQueueStore.setState({ current: null, upcoming: [], history: [], version: 0 });
   usePlayerStore.setState({ ...usePlayerStore.getInitialState() });
   useToastStore.setState({ message: null });
@@ -132,5 +135,19 @@ describe("realtime handlers — dispatch (websocket.md §3)", () => {
     usePlayerStore.setState({ state: "PLAYING" });
     handleRealtimeEvent(RealtimeEvents.QueueEnded, { version: 9 });
     expect(usePlayerStore.getState().state).toBe("IDLE");
+  });
+
+  it("EQ_CHANGED → eqStore setActive + AudioEngine.applyEq (equalizer.md §5)", () => {
+    handleRealtimeEvent(RealtimeEvents.EqChanged, {
+      presetId: "00000000-0000-4000-8000-000000000007",
+      bands: [8, 6, 4, 2, 0, 0, 0, 0, 0, 0],
+      version: 3,
+    });
+    const eq = useEqStore.getState();
+    expect(eq.activePresetId).toBe("00000000-0000-4000-8000-000000000007");
+    expect(eq.activeBands).toEqual([8, 6, 4, 2, 0, 0, 0, 0, 0, 0]);
+    expect(eq.draftBands).toBeNull(); // draft ของ tab นี้ถูกแทนด้วยค่า remote
+    expect(engineCalls[0]!.fn).toBe("applyEq");
+    expect(engineCalls[0]!.arg).toEqual([8, 6, 4, 2, 0, 0, 0, 0, 0, 0]);
   });
 });

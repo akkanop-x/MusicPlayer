@@ -10,6 +10,7 @@
  * - #8 AudioContext suspended → สร้าง/ต่อ Web Audio graph หลัง first gesture เท่านั้น
  */
 import {
+  EQ_BAND_COUNT,
   initialPlayerContext,
   shouldAutoAdvance,
   transition,
@@ -20,6 +21,7 @@ import {
   type TrackStartedPayload,
 } from "@musicplayer/shared";
 import { playerApi, queueApi } from "../api";
+import { createEqFilters } from "./eqGraph";
 import {
   isRealtimeConnected,
   positionSync,
@@ -40,6 +42,10 @@ export class AudioEngine {
   private audioCtx: AudioContext | null = null;
   private gainNode: GainNode | null = null;
   private mediaSource: MediaElementAudioSourceNode | null = null;
+  /** EQ chain (equalizer.md §1) — สร้างครั้งเดียวพร้อม graph, เปลี่ยนแค่ gain ของ filter */
+  private eqFilters: BiquadFilterNode[] = [];
+  /** ค่า EQ ล่าสุด — graph ยังไม่เกิด (ยังไม่มี gesture) → apply ตอนสร้าง (equalizer.md §5) */
+  private pendingEqBands: number[] | null = null;
   /** generation counter — คำสั่ง play ที่ใหม่กว่ายกเลิกผลของอันเก่า (#1/#2) */
   private playSeq = 0;
   /** generation counter ของ refreshQueue — กัน response เก่าทับ queue ใหม่ */
@@ -76,9 +82,21 @@ export class AudioEngine {
       this.audioCtx = new AudioContext();
       this.mediaSource = this.audioCtx.createMediaElementSource(this.audio);
       this.gainNode = this.audioCtx.createGain();
-      this.mediaSource.connect(this.gainNode).connect(this.audioCtx.destination);
+      // equalizer.md §1: MediaElementSource → EQ ×10 → Gain(volume) → Compressor(−6 dB) → out
+      this.eqFilters = createEqFilters(this.audioCtx);
+      this.mediaSource.connect(this.eqFilters[0]!);
+      for (let i = 0; i < this.eqFilters.length - 1; i += 1) {
+        this.eqFilters[i]!.connect(this.eqFilters[i + 1]!);
+      }
+      this.eqFilters[this.eqFilters.length - 1]!.connect(this.gainNode);
+      // compressor = default safety กัน clip เมื่อหลาย band บวกพร้อมกัน (equalizer.md §7)
+      const compressor = this.audioCtx.createDynamicsCompressor();
+      compressor.threshold.value = -6;
+      this.gainNode.connect(compressor).connect(this.audioCtx.destination);
       const { volume } = usePlayerStore.getState();
       this.gainNode.gain.value = volume / 100;
+      const bands = this.pendingEqBands;
+      if (bands) this.applyEq(bands);
     } catch {
       // ถ้า Web Audio ใช้ไม่ได้ เสียงยังออกผ่าน element โดยตรง
       this.audioCtx = null;
@@ -354,6 +372,23 @@ export class AudioEngine {
       .setRepeat(mode)
       .then((dto) => usePlayerStore.getState().setStateDto(dto))
       .catch(() => undefined);
+  }
+
+  // ---------- EQ (equalizer.md §3/§5) ----------
+  /**
+   * apply bands ที่ audio graph ทันที — null = Flat (zeros)
+   * setTargetAtTime (timeConstant 0.05) เท่านั้น: เฟด exponential กัน click/pop
+   * ตอนลาก slider ระหว่างเสียงเล่น — ห้ามเขียน .gain.value ตรง ๆ
+   * graph ยังไม่เกิด (ยังไม่มี gesture) → เก็บไว้ apply ตอน ensureAudioGraph
+   */
+  applyEq(bands: number[] | null): void {
+    const gains = bands ?? new Array<number>(EQ_BAND_COUNT).fill(0);
+    this.pendingEqBands = bands;
+    if (!this.audioCtx || this.eqFilters.length === 0) return;
+    const now = this.audioCtx.currentTime;
+    this.eqFilters.forEach((filter, i) => {
+      filter.gain.setTargetAtTime(gains[i] ?? 0, now, 0.05);
+    });
   }
 
   // ---------- events ปลายทาง ----------

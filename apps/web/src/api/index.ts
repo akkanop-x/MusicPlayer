@@ -1,8 +1,10 @@
 import type {
+  EqPresetDTO,
   PlayerStateDTO,
   QueueStateDTO,
   SearchResponseDTO,
   TrackDTO,
+  UserSettingsDTO,
 } from "@musicplayer/shared";
 import { api, apiJson } from "./client";
 import { useAuthStore } from "../stores/authStore";
@@ -73,6 +75,24 @@ export const queueApi = {
     api<QueueStateDTO>(`/queue/items/${itemId}`, { method: "DELETE" }),
   clear: (scope: "upcoming" | "all" = "upcoming") =>
     api<QueueStateDTO>(`/queue?scope=${scope}`, { method: "DELETE" }),
+};
+
+/** Settings + EQ (api.md §10 #38–44) — equalizer.md §5: เลือก preset apply local ก่อน แล้วค่อยยิง REST */
+export const settingsApi = {
+  get: () => api<UserSettingsDTO>("/settings"),
+  patch: (patch: { volume?: number; muted?: boolean; autoplay?: boolean }) =>
+    apiJson<UserSettingsDTO>("PATCH", "/settings", patch),
+};
+
+export const eqApi = {
+  getPresets: () => api<{ presets: EqPresetDTO[] }>("/eq/presets"),
+  createPreset: (name: string, bands: number[]) =>
+    apiJson<EqPresetDTO>("POST", "/eq/presets", { name, bands }),
+  updatePreset: (id: string, patch: { name?: string; bands?: number[] }) =>
+    apiJson<EqPresetDTO>("PATCH", `/eq/presets/${id}`, patch),
+  deletePreset: (id: string) => api<void>(`/eq/presets/${id}`, { method: "DELETE" }),
+  setActive: (presetId: string | null) =>
+    apiJson<UserSettingsDTO>("PUT", "/eq/active", { presetId }),
 };
 
 /** ฟื้นเซสชันตอนโหลดหน้า — ลอง refresh เงียบ ๆ แล้วดึง /me */
