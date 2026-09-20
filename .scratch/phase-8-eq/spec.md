@@ -71,3 +71,4 @@ DynamicsCompressorNode(−6 dB) → destination` — สร้างครั้
 - ลบ preset ที่ active → FK set null → broadcast `{presetId: null, bands: null}` = Flat
 - แก้ไข bands เปล่า ๆ ยังไม่ persist จนกว่าจะบันทึกเป็น custom preset (api.md #44)
 - รายละเอียด smoke + lessons อยู่ใน issues/05
+- CI: run 35528251893 success (feat: Phase 8 — EQ, commit 6259bfe)
