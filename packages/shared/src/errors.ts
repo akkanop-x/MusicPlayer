@@ -11,6 +11,7 @@ export const ERROR_CODES = [
   "RATE_LIMITED",
   "UPSTREAM_UNAVAILABLE",
   "TRACK_UNPLAYABLE",
+  "EMAIL_TAKEN",
   "INTERNAL",
 ] as const;
 
@@ -43,5 +44,6 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   RATE_LIMITED: 429,
   UPSTREAM_UNAVAILABLE: 503,
   TRACK_UNPLAYABLE: 422,
+  EMAIL_TAKEN: 409,
   INTERNAL: 500,
 };

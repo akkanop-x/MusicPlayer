@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 
-const testEnv = { LAVALINK_URL: "http://unused", LAVALINK_PASSWORD: "x" };
+const testEnv = {
+  LAVALINK_URL: "http://unused",
+  LAVALINK_PASSWORD: "x",
+  RESOLVER_URL: "http://unused",
+  JWT_SECRET: "test-jwt-secret-with-32-chars-min!!",
+  REFRESH_SECRET: "test-refresh-secret-32-chars-min!!",
+};
 
 describe("GET /health", () => {
   it("responds 200 with { ok: true }", async () => {

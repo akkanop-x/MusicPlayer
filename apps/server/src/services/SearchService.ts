@@ -19,8 +19,12 @@ export interface SearchOptions {
 
 export interface SearchDeps {
   /** ปกติ: (t) => upsertTrack(db, t) — inject เป็น function เพื่อให้ test ได้ seam ที่ไม่แตะ DB */
-  upsertTrack: (track: TrackUpsert) => Promise<{ id: string }>;
+  upsertTrack: (track: TrackUpsert) => Promise<{ id: string; isNew?: boolean }>;
   lavalink: Pick<LavalinkClient, "loadTracks">;
+  /** genre enrichment (Phase 3) — เรียกแบบ fire-and-forget เฉพาะ track ใหม่ของ youtube */
+  enrichGenres?: (trackId: string, artist: string) => Promise<void>;
+  /** จำกัดจำนวน enrich ต่อ request กัน flood Spotify API */
+  enrichBudgetPerRequest?: number;
 }
 
 export interface SearchResult {
@@ -41,9 +45,20 @@ export function createSearchService(deps: SearchDeps) {
     const result = await deps.lavalink.loadTracks(`${prefix}${q}`);
     const lavalinkTracks = flattenLoadResult(result).slice(0, limit);
 
+    let enrichBudget = deps.enrichBudgetPerRequest ?? 3;
     const tracks: TrackDTO[] = [];
     for (const lavalinkTrack of lavalinkTracks) {
-      const { id } = await deps.upsertTrack(toUpsert(lavalinkTrack));
+      const { id, isNew } = await deps.upsertTrack(toUpsert(lavalinkTrack));
+      if (
+        isNew &&
+        lavalinkTrack.info.sourceName === "youtube" &&
+        deps.enrichGenres &&
+        enrichBudget > 0
+      ) {
+        enrichBudget -= 1;
+        // fire-and-forget — genre ไม่ใช่ critical path ของ search response (fail-soft)
+        deps.enrichGenres(id, lavalinkTrack.info.author).catch(() => undefined);
+      }
       tracks.push(toDTO(id, lavalinkTrack));
     }
 

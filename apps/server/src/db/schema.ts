@@ -208,3 +208,26 @@ export const queueItems = pgTable(
   },
   (t) => [uniqueIndex("queue_items_position_uq").on(t.userId, t.kind, t.position)],
 );
+
+/**
+ * Refresh token rotation (ADR-006 / security.md §1) — เก็บเฉพาะ hash ของ token
+ * reuse detection: ใช้ token ที่ถูก revoke แล้ว → revoke ทั้ง series
+ */
+export const refreshTokens = pgTable(
+  "refresh_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+    seriesId: uuid("series_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("refresh_tokens_user_idx").on(t.userId),
+    index("refresh_tokens_series_idx").on(t.seriesId),
+  ],
+);

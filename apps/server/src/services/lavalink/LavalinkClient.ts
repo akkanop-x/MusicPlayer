@@ -1,4 +1,5 @@
 import { LavalinkRequestError, LavalinkUnavailableError } from "./errors.js";
+import { CircuitBreaker } from "../circuitBreaker.js";
 import type {
   LavalinkFetch,
   LavalinkInfo,
@@ -59,7 +60,11 @@ export class LavalinkClient {
   }
 
   private async getJson(url: string): Promise<unknown> {
-    this.breaker.tryAcquire();
+    try {
+      this.breaker.tryAcquire();
+    } catch {
+      throw new LavalinkUnavailableError("Lavalink circuit breaker is open");
+    }
     try {
       const response = await this.fetchImpl(url, {
         headers: { Authorization: this.password },
@@ -88,37 +93,6 @@ export class LavalinkClient {
       throw new LavalinkUnavailableError(`Lavalink unreachable at ${this.baseUrl}`, {
         cause: error,
       });
-    }
-  }
-}
-
-/** consecutive-failure breaker — open แล้ว reject ทันทีจนพ้น cooldown */
-class CircuitBreaker {
-  private consecutiveFailures = 0;
-  private openedAt: number | null = null;
-
-  constructor(
-    private readonly threshold: number,
-    private readonly cooldownMs: number,
-  ) {}
-
-  tryAcquire(): void {
-    if (this.openedAt === null) return;
-    if (Date.now() - this.openedAt < this.cooldownMs) {
-      throw new LavalinkUnavailableError("Lavalink circuit breaker is open");
-    }
-    // พ้น cooldown — half-open: ยอมให้ request นี้พยายาม, ผลลัพธ์ตัดสินที่ onSuccess/onFailure
-  }
-
-  onSuccess(): void {
-    this.consecutiveFailures = 0;
-    this.openedAt = null;
-  }
-
-  onFailure(): void {
-    this.consecutiveFailures += 1;
-    if (this.consecutiveFailures >= this.threshold) {
-      this.openedAt = Date.now();
     }
   }
 }

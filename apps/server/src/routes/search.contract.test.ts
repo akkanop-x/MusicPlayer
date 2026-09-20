@@ -46,7 +46,14 @@ function makeHarness(loadResult: LoadResult) {
   }).search;
 
   const app = buildApp(
-    { CORS_ORIGIN: undefined, LAVALINK_URL: "http://unused", LAVALINK_PASSWORD: "x" },
+    {
+      CORS_ORIGIN: undefined,
+      RESOLVER_URL: "http://unused",
+      LAVALINK_URL: "http://unused",
+      LAVALINK_PASSWORD: "x",
+      JWT_SECRET: "test-jwt-secret-with-32-chars-min!!",
+      REFRESH_SECRET: "test-refresh-secret-32-chars-min!!",
+    },
     { search },
   );
 
@@ -213,7 +220,14 @@ describe("GET /api/v1/search — contract ครบ 5 loadTypes", () => {
 
   it("fail-soft: lavalink โยน UnavailableError → 503 (ไม่ 500)", async () => {
     const app = buildApp(
-      { CORS_ORIGIN: undefined, LAVALINK_URL: "http://unused", LAVALINK_PASSWORD: "x" },
+      {
+        CORS_ORIGIN: undefined,
+        RESOLVER_URL: "http://unused",
+        LAVALINK_URL: "http://unused",
+        LAVALINK_PASSWORD: "x",
+        JWT_SECRET: "test-jwt-secret-with-32-chars-min!!",
+        REFRESH_SECRET: "test-refresh-secret-32-chars-min!!",
+      },
       {
         search: createSearchService({
           lavalink: {
