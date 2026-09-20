@@ -74,7 +74,9 @@ describe("socketClient (websocket.md §1/§5)", () => {
     useAuthStore.setState({ accessToken: "tok-1" });
     connectRealtime();
     expect(ioMock).toHaveBeenCalledTimes(1);
-    expect((ioMock.mock.calls[0] as unknown as [string, Record<string, unknown>])[1]).toMatchObject({
+    expect(
+      (ioMock.mock.calls[0] as unknown as [string, Record<string, unknown>])[1],
+    ).toMatchObject({
       path: "/ws",
       auth: { token: "tok-1" },
     });
