@@ -59,48 +59,58 @@ apps/server/src/
 ## 2. ความรับผิดชอบของแต่ละ Service
 
 ### AuthService
+
 - สมัคร/ล็อกอิน (argon2 hash), issue access token (short-lived JWT in memory) + refresh token rotation (httpOnly cookie)
 - Guard สำหรับ routes (`requireAuth`) + WS handshake auth
 - รายละเอียด: [ADR-006](./adr/006-authentication.md), security.md
 
 ### SearchService
+
 - รับ query → เรียก `LavalinkClient.loadtracks()` ด้วย prefix ของ source ที่เปิด
 - Normalize `Track` ของ Lavalink → `TrackDTO` ของเรา → upsert `tracks` table (dedupe ด้วย `source_name + source_identifier`)
 - Merge ผลจาก local library (query `tracks` table) + Lavalink แล้วเรียงตาม relevance อย่างง่าย
 - Fail-soft: ถ้า Lavalink ล่ม ตอบเฉพาะผล local + บอกว่า source ใดใช้ไม่ได้
 
 ### StreamService ⚠️ (ความปลอดภัยไว้สูงสุด — ดู security.md §Stream Proxy)
+
 - `resolveStreamUrl(trackId)`: track ชนิด `youtube|soundcloud` (**source หลัก MVP — ADR-008**) → ถาม resolver service (แยก container); ชนิด `http` → URL ตรง; ชนิด `local` → ไฟล์ใน media volume (**Phase 14 fallback เท่านั้น**)
 - `proxyStream(trackId, rangeHeader)`: ดึง bytes จาก source แล้ว pipe กลับ client พร้อม 206/Content-Range
 - **SSRF guards:** allowlist ของ source hosts + บล็อก private/link-local IP (resolve DNS แล้วตรวจก่อน connect) + จำกัด redirect + จำกัดขนาด content-length
 
 ### PlayerService
+
 - ถือ **player state machine ต่อ user** (ดู player.md): idle/loading/playing/paused/buffering/ended/error
 - รับคำสั่ง (play/pause/seek/skip/previous/volume) → เปลี่ยน state → broadcast WS event → บันทึก position snapshot
 - รับ playback events จาก client (`POSITION_SYNC`, `TRACK_STALLED`, `TRACK_ENDED`) พร้อม sanity check (เช่น position วิ่งเร็วเกินจริง → ปฏิเสธ)
 - เมื่อ `TRACK_ENDED` → สั่ง QueueService.advance() → ถ้าไม่มีเพลงและ autoplay เปิด → ขอ RecommendationService → push `QUEUE_UPDATED`
 
 ### QueueService
+
 - โครงสร้าง: `history` (stack) + `upcoming` (list) ต่อ user — ดู queue.md
 - Operations: add, addNext, remove, move, clear, shuffle, unshuffle, skip, previous; repeat ผูกกับ PlayerService
 - Persist: snapshot ลง DB (`queue_snapshots` / `queue_items`) ทุกครั้งที่ mutate — restore ได้หลัง restart
 - Emit `QUEUE_UPDATED` หลังทุก mutation
 
 ### PlaylistService
+
 - CRUD playlist + reorder/add/remove tracks (ธุรกรรม: อัปเดต `position` ทั้งชุด)
 - "เล่น playlist" = ขอ QueueService แทนที่ upcoming ด้วยเพลงของ playlist
 
 ### HistoryService
+
 - บันทึก listening event (trackId, playedAt, msPlayed, skipped) — เกณฑ์: จบเพลง หรือเล่น ≥ 30 s
 - Query แบบ timeline + pagination (cursor-based)
 
 ### LikeService
+
 - Like/unlike + รายการ liked; sync ข้ามอุปกรณ์ผ่าน WS `LIKES_CHANGED`
 
 ### SettingsService
+
 - user_settings (volume, autoplay, theme...) + EQ presets (system presets + custom ต่อ user)
 
 ### RecommendationService
+
 - Interface `RecommendationProvider` (ดู recommendation.md): MVP = `RuleBasedProvider`
 - ให้ 2 โหมด: `getHomeFeed(userId)` และ `getRadioTracks(seed, exclude, limit)` สำหรับ autoplay/radio
 
@@ -132,8 +142,8 @@ apps/server/src/
 
 ## 8. Risks
 
-| Risk                                   | บรรเทา                                            |
-|----------------------------------------|----------------------------------------------------|
-| Player state ใน memory หายเมื่อ restart | Snapshot ทุก mutation + restore ตอน boot            |
-| Stream proxy บล็อก event loop ของ API  | Pipe (backpressure ของ Node stream), วัดตั้งแต่ Phase 3, แยก process ได้ภายหลัง |
-| Logic shuffle/repeat ซ้ำซ้อน client/server | เขียนเป็น pure functions ใน `packages/shared` ใช้สอยสองฝั่ง |
+| Risk                                       | บรรเทา                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------- |
+| Player state ใน memory หายเมื่อ restart    | Snapshot ทุก mutation + restore ตอน boot                                        |
+| Stream proxy บล็อก event loop ของ API      | Pipe (backpressure ของ Node stream), วัดตั้งแต่ Phase 3, แยก process ได้ภายหลัง |
+| Logic shuffle/repeat ซ้ำซ้อน client/server | เขียนเป็น pure functions ใน `packages/shared` ใช้สอยสองฝั่ง                     |

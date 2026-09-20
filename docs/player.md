@@ -39,16 +39,16 @@ stateDiagram-v2
 
 ## 3. Commands → Behavior
 
-| Command   | Pre-state ที่ยอมรับ      | พฤติกรรม                                                                 |
-|-----------|---------------------------|---------------------------------------------------------------------------|
-| play      | any                       | ยกเลิกการโหลดปัจจุบัน → LOADING(track ใหม่); ถ้า state=PLAYING เพลงเดิม → restart ที่ 0 |
-| pause     | PLAYING, BUFFERING        | → PAUSED; ถ้า LOADING → จำ intent `pauseWhenReady` (เมื่อโหลดเสร็จเข้า PAUSED ทันที) |
-| resume    | PAUSED                    | → PLAYING (ตำแหน่งเดิม)                                                    |
-| seek      | PLAYING, PAUSED, BUFFERING| clamp [0, duration-1]; → BUFFERING ชั่วครู่แล้วกลับ state เดิม; ห้ามบน isStream |
-| skip      | LOADING..ENDED            | ขอเพลงถัดไปจาก QueueService → LOADING (repeat one: skip ข้าม one ไปถัดไป) |
-| previous  | มี history                | ถ้า position > 3 s → restart เพลงปัจจุบัน; ไม่งั้น → pop history → LOADING |
-| volume    | any                       | ไม่แตะ state; GainNode + settings                                         |
-| stop      | any (internal)            | → IDLE, ล้า track ปัจจุบัน (ใช้เมื่อ clear queue all)                        |
+| Command  | Pre-state ที่ยอมรับ        | พฤติกรรม                                                                                |
+| -------- | -------------------------- | --------------------------------------------------------------------------------------- |
+| play     | any                        | ยกเลิกการโหลดปัจจุบัน → LOADING(track ใหม่); ถ้า state=PLAYING เพลงเดิม → restart ที่ 0 |
+| pause    | PLAYING, BUFFERING         | → PAUSED; ถ้า LOADING → จำ intent `pauseWhenReady` (เมื่อโหลดเสร็จเข้า PAUSED ทันที)    |
+| resume   | PAUSED                     | → PLAYING (ตำแหน่งเดิม)                                                                 |
+| seek     | PLAYING, PAUSED, BUFFERING | clamp [0, duration-1]; → BUFFERING ชั่วครู่แล้วกลับ state เดิม; ห้ามบน isStream         |
+| skip     | LOADING..ENDED             | ขอเพลงถัดไปจาก QueueService → LOADING (repeat one: skip ข้าม one ไปถัดไป)               |
+| previous | มี history                 | ถ้า position > 3 s → restart เพลงปัจจุบัน; ไม่งั้น → pop history → LOADING              |
+| volume   | any                        | ไม่แตะ state; GainNode + settings                                                       |
+| stop     | any (internal)             | → IDLE, ล้า track ปัจจุบัน (ใช้เมื่อ clear queue all)                                   |
 
 ## 4. การแบ่งหน้าที่ Backend vs Frontend ในแต่ละ Transition
 
@@ -70,21 +70,21 @@ POST /player/play ────────────► validate + set state L
 
 ## 5. Edge Cases
 
-| # | Edge case                              | พฤติกรรมที่กำหนด                                                            |
-|---|-----------------------------------------|---------------------------------------------------------------------------------|
-| 1 | กด Play เพลงใหมกระหว่าง LOADING         | ยกเลิก load เดิม (abort fetch + reset element) → เริ่ม LOADING เพลงใหม่ — ห้ามเสียงซ้อน |
-| 2 | Skip ระหว่าง LOADING                    | เหมือนกัน: abort ปัจจุบัน → LOADING เพลงถัดไป                                    |
-| 3 | Pause ระหว่าง LOADING                   | `pauseWhenReady` — โหลดเสร็จแล้วเข้า PAUSED ทันที (ไม่เล่นแม้แต่วินาทีเดียว)     |
-| 4 | Track error (source 404/5xx, codec)     | LOADING → ERROR → broadcast TRACK_EXCEPTION → auto-advance เพลงถัดไป (นับต่อเนื่อง ≤ 3 ครั้ง แล้ว → IDLE + toast) |
-| 5 | Lavalink disconnect                    | **ไม่กระทบ playback** (กระทบแค่ search ตอนนั้น); backend log + health check    |
-| 6 | WS disconnect ระหว่างเล่น              | เสียงเล่นต่อ; คำสั่งใช้ REST; reconnect แล้ว SYNC_REQUEST                        |
-| 7 | Browser refresh / ปิดเปิด tab           | เสียงหยุด (DOM ถูกทำลาย); กลับมา → GET /player → แสดงปุ่ม "เล่นต่อ" (autoplay policy ต้องการ gesture) — position จาก snapshot |
-| 8 | AudioContext suspended (autoplay policy)| AudioEngine เรียก `ctx.resume()` ใน user gesture แรกเสมอ; ถ้ายัง suspended ระหว่างที่สั่ง play แบบ programmatic (autoplay) → state ค้าง PLAYING แต่เงียบ → แสดง banner "แตะเพื่อเปิดเสียง" |
-| 9 | Seek บน live stream / unseekable       | ปฏิเสธ (400) + UI disable                                                    |
-| 10| Multi-tab เล่นพร้อมกัน                 | tab ที่สองสั่ง play → tab แรกได้ PLAYER_STATE_CHANGED → หยุดเสียงตัวเอง (last-writer-wins) |
-| 11| Track ended แต่ autoplay โหลดไม่ทัน    | เข้า LOADING พร้อม skeleton "กำลังเลือกเพลงถัดไป" — แสดง ≤ 5 s; ถ้าเกิน → QUEUE_ENDED (ถ้าไม่มีเพลงแล้ว) |
-| 12| Position drift หลัง reconnect          | client เทียบ server position; ถ้าต่าง > 500 ms และ server ใหม่กว่า → seek ตาม server |
-| 13| Backend restart กลางเพลง               | client เสียงเล่นต่อ; WS reconnect; backend restore snapshot จาก DB; ถ้า state เพี้ยน → SYNC_REQUEST ตรึง |
+| #   | Edge case                                | พฤติกรรมที่กำหนด                                                                                                                                                                           |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | กด Play เพลงใหมกระหว่าง LOADING          | ยกเลิก load เดิม (abort fetch + reset element) → เริ่ม LOADING เพลงใหม่ — ห้ามเสียงซ้อน                                                                                                    |
+| 2   | Skip ระหว่าง LOADING                     | เหมือนกัน: abort ปัจจุบัน → LOADING เพลงถัดไป                                                                                                                                              |
+| 3   | Pause ระหว่าง LOADING                    | `pauseWhenReady` — โหลดเสร็จแล้วเข้า PAUSED ทันที (ไม่เล่นแม้แต่วินาทีเดียว)                                                                                                               |
+| 4   | Track error (source 404/5xx, codec)      | LOADING → ERROR → broadcast TRACK_EXCEPTION → auto-advance เพลงถัดไป (นับต่อเนื่อง ≤ 3 ครั้ง แล้ว → IDLE + toast)                                                                          |
+| 5   | Lavalink disconnect                      | **ไม่กระทบ playback** (กระทบแค่ search ตอนนั้น); backend log + health check                                                                                                                |
+| 6   | WS disconnect ระหว่างเล่น                | เสียงเล่นต่อ; คำสั่งใช้ REST; reconnect แล้ว SYNC_REQUEST                                                                                                                                  |
+| 7   | Browser refresh / ปิดเปิด tab            | เสียงหยุด (DOM ถูกทำลาย); กลับมา → GET /player → แสดงปุ่ม "เล่นต่อ" (autoplay policy ต้องการ gesture) — position จาก snapshot                                                              |
+| 8   | AudioContext suspended (autoplay policy) | AudioEngine เรียก `ctx.resume()` ใน user gesture แรกเสมอ; ถ้ายัง suspended ระหว่างที่สั่ง play แบบ programmatic (autoplay) → state ค้าง PLAYING แต่เงียบ → แสดง banner "แตะเพื่อเปิดเสียง" |
+| 9   | Seek บน live stream / unseekable         | ปฏิเสธ (400) + UI disable                                                                                                                                                                  |
+| 10  | Multi-tab เล่นพร้อมกัน                   | tab ที่สองสั่ง play → tab แรกได้ PLAYER_STATE_CHANGED → หยุดเสียงตัวเอง (last-writer-wins)                                                                                                 |
+| 11  | Track ended แต่ autoplay โหลดไม่ทัน      | เข้า LOADING พร้อม skeleton "กำลังเลือกเพลงถัดไป" — แสดง ≤ 5 s; ถ้าเกิน → QUEUE_ENDED (ถ้าไม่มีเพลงแล้ว)                                                                                   |
+| 12  | Position drift หลัง reconnect            | client เทียบ server position; ถ้าต่าง > 500 ms และ server ใหม่กว่า → seek ตาม server                                                                                                       |
+| 13  | Backend restart กลางเพลง                 | client เสียงเล่นต่อ; WS reconnect; backend restore snapshot จาก DB; ถ้า state เพี้ยน → SYNC_REQUEST ตรึง                                                                                   |
 
 ## 6. Error Recovery Checklist (frontend AudioEngine)
 

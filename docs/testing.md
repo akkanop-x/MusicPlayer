@@ -17,27 +17,27 @@ Manual QA           — เสียงจริงผ่านหู (สิ่
 
 ## 2. Frameworks
 
-| ประสงค์             | เครื่องมือ                                       | เหตุผล                                              |
-|---------------------|---------------------------------------------------|------------------------------------------------------|
-| Unit / Integration  | Vitest                                             | เร็ว, TS-native, ใช้ร่วมกับ Vite frontend ได้, mock ง่าย |
-| API tests           | Vitest + Fastify `inject()` (in-process, ไม่ต้อง port) | ใช้กรอบ integration เดิม                            |
-| WS tests            | Vitest + socket.io-client ต่อ in-process server     | ทดสอบ event contract จริง                            |
-| DB tests            | Testcontainers (PostgreSQL)                        | schema/migration จริง ไม่ mock DB                    |
-| Lavalink integration| Mock server ที่ implement `/v4/loadtracks` จาก spec + (optional) Lavalink container จริงใน CI ช้า | แยกชั้น: contract test กับ mock, smoke test กับของจริง |
-| E2E                 | Playwright (chromium, firefox, webkit)             | cross-browser, จับ audio state ได้ผ่าน evaluate     |
-| Audio unit (EQ)     | Vitest + OfflineAudioContext                       | ตรวจ frequency response ของ EQ chain ได้แบบ deterministic |
+| ประสงค์              | เครื่องมือ                                                                                        | เหตุผล                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Unit / Integration   | Vitest                                                                                            | เร็ว, TS-native, ใช้ร่วมกับ Vite frontend ได้, mock ง่าย  |
+| API tests            | Vitest + Fastify `inject()` (in-process, ไม่ต้อง port)                                            | ใช้กรอบ integration เดิม                                  |
+| WS tests             | Vitest + socket.io-client ต่อ in-process server                                                   | ทดสอบ event contract จริง                                 |
+| DB tests             | Testcontainers (PostgreSQL)                                                                       | schema/migration จริง ไม่ mock DB                         |
+| Lavalink integration | Mock server ที่ implement `/v4/loadtracks` จาก spec + (optional) Lavalink container จริงใน CI ช้า | แยกชั้น: contract test กับ mock, smoke test กับของจริง    |
+| E2E                  | Playwright (chromium, firefox, webkit)                                                            | cross-browser, จับ audio state ได้ผ่าน evaluate           |
+| Audio unit (EQ)      | Vitest + OfflineAudioContext                                                                      | ตรวจ frequency response ของ EQ chain ได้แบบ deterministic |
 
 ## 3. สิ่งที่ต้อง test แยกตามประเภท
 
 ### 3.1 Unit Tests (target coverage: logic สำคัญ ~90%, ทั่วไป ~70%)
 
-| โมดูล                     | กรณีวิกฤตที่ต้องมี                                                 |
-|---------------------------|---------------------------------------------------------------------|
-| `queueLogic` (shared)     | shuffle แล้ว previous ตาม path จริง (A→D→B→C ตัวอย่างใน queue.md); unshuffle คืนลำดับหลัง mutate; repeat one×skip; repeat all วนรอบ; previous ที่ position>3s = restart; clear/upcoming vs all |
-| `playerState` (shared)    | ทุก transition ใน player.md §3; คำสั่งใน state ที่ไม่อนุญาต → error; pauseWhenReady; error auto-advance นับ ≤ 3 |
-| `recommendation scoring`  | exclude set ถูกตัดทุกกรณี (current/queue/recent/skipped); diversity penalty; fallback เมื่อ pool ว่าง |
-| validation schemas        | ขอบเขตทุกตัว (volume, bands, positionMs, ids)                      |
-| `formatDuration`, utils   | ปกติ + edge (live stream, 0, > 1 ชม.)                              |
+| โมดูล                    | กรณีวิกฤตที่ต้องมี                                                                                                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queueLogic` (shared)    | shuffle แล้ว previous ตาม path จริง (A→D→B→C ตัวอย่างใน queue.md); unshuffle คืนลำดับหลัง mutate; repeat one×skip; repeat all วนรอบ; previous ที่ position>3s = restart; clear/upcoming vs all |
+| `playerState` (shared)   | ทุก transition ใน player.md §3; คำสั่งใน state ที่ไม่อนุญาต → error; pauseWhenReady; error auto-advance นับ ≤ 3                                                                                |
+| `recommendation scoring` | exclude set ถูกตัดทุกกรณี (current/queue/recent/skipped); diversity penalty; fallback เมื่อ pool ว่าง                                                                                          |
+| validation schemas       | ขอบเขตทุกตัว (volume, bands, positionMs, ids)                                                                                                                                                  |
+| `formatDuration`, utils  | ปกติ + edge (live stream, 0, > 1 ชม.)                                                                                                                                                          |
 
 ### 3.2 Integration Tests (backend + DB จริง)
 

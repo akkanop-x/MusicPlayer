@@ -25,12 +25,14 @@ Web SPA + REST + WebSocket ทั้งหมดต้อง auth (ไม่ม�
 ## Consequences
 
 **บวก:**
+
 - XSS ขโมยได้แค่ access token อายุ 15 นาที (ไม่ใช่ session ถาวร); refresh cookie JS อ่านไม่ได้
 - Token theft มีทางตรวจจับ (reuse detection) + ตัดได้ (revoke series)
 - ไม่ต้องพึ่ง CSRF token table
 - WS auth ใช้ Bearer ตอน handshake ได้โดยไม่สับสนกับ cookie
 
 **ลบ:**
+
 - มี refresh flow ที่ต้องเขียน (frontend interceptor จับ 401 → refresh → retry ต้องระวัง race หลาย request พร้อมกัน — ใช้ single-flight refresh)
 - Access token หายเมื่อ refresh หน้า (อยู่ใน memory) → ต้อง refresh หลังโหลด (one round-trip เพิ่ม แต่แลกกับความปลอดภัย — คุ้ม)
 - Service worker/ช่องทาง non-browser ในอนาคตต้องหาทางส่ง refresh token ใหม่ (ยังไม่ใช่ use case)

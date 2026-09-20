@@ -31,10 +31,12 @@ ADR-003 วาง YouTube/SoundCloud playback ไว้เป็น "Phase B" �
 ## Consequences
 
 **บวก:**
+
 - Catalog เพิ่มจากศูนย์เป็นระดับล้านเพลงโดยไม่ต้อง ingest เอง
 - สถาปัตยกรรมไม่เปลี่ยน — resolver เป็นแค่ source ใหม่ของ StreamService (interface เดิม)
 
 **ลบ / ที่ต้องยอมรับ:**
+
 - เพลงจาก YouTube อาจพังเป็นช่วง ๆ โดยไม่มีความผิดของโค้ดเรา → ต้องมี UX รับมือ (TRACK_EXCEPTION + ข้ามอัตโนมัติ — มีอยู่แล้วใน player.md)
 - ต้องอัปเดต resolver dependency บ่อย (เพิ่มงาน maintenance ชัดเจนใน roadmap Phase 14)
 - เสี่ยงถูกบล็อก IP ของ server (บรรเทา: rotate/route planner, แต่ไม่การันตี)

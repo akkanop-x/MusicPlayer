@@ -34,22 +34,24 @@ Rendering:                    Browser Web Audio (EQ ×10 → Gain → speakers)
 
 ## Alternatives
 
-| ทางเลือก | ทำไมไม่เลือก (ตอนนี้) |
-|-----------|--------------------------|
-| **A. Lavalink ส่งเสียงถึง browser โดยตรง** | ไม่มีอยู่จริง (พิสูจน์แล้วข้างบน) — เป็น requirement ที่เป็นไปไม่ได้กับ Lavalink v4 |
-| **C. Server-side transcode (FFmpeg → HLS/ICY → MSE)** | ใช้ได้จริงแต่: CPU หนักต่อ concurrent stream, latency HLS สูง (2–6 s), เพิ่ม service JVM+FFmpeg อีกชั้น สำหรับ MVP ที่ต้องการ EQ ที่ client ทำได้อยู่แล้ว ถือว่า over-engineer — **เก็บเป็นแผนถัดไป** เมื่อต้องการ: server-side EQ จริง, sync หลายอุปกรณ์ระดับ ms, หรือ transcode codec ที่ browser ไม่รองรับ |
-| **D. ทิ้ง Lavalink ใช้ extractor เอง (yt-dlp) ทำทุกอย่าง** | เรียบง่ายกว่า operationally แต่ requirement ของเจ้าของโปรเจกต์ระบุให้ใช้ Lavalink; และ ecosystem ของ Lavalink (source plugins, LavaSrc) คุ้มค่าในบทบาท resolver |
-| **E. เล่นตรงจาก source โดยไม่ proxy** | เจอ CORS-tainted silence กับ MediaElementSource + ต้องเปิดเผย/ยอมรับ URL จากภายนอก → ไม่ปลอดภัย |
+| ทางเลือก                                                   | ทำไมไม่เลือก (ตอนนี้)                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A. Lavalink ส่งเสียงถึง browser โดยตรง**                 | ไม่มีอยู่จริง (พิสูจน์แล้วข้างบน) — เป็น requirement ที่เป็นไปไม่ได้กับ Lavalink v4                                                                                                                                                                                                                           |
+| **C. Server-side transcode (FFmpeg → HLS/ICY → MSE)**      | ใช้ได้จริงแต่: CPU หนักต่อ concurrent stream, latency HLS สูง (2–6 s), เพิ่ม service JVM+FFmpeg อีกชั้น สำหรับ MVP ที่ต้องการ EQ ที่ client ทำได้อยู่แล้ว ถือว่า over-engineer — **เก็บเป็นแผนถัดไป** เมื่อต้องการ: server-side EQ จริง, sync หลายอุปกรณ์ระดับ ms, หรือ transcode codec ที่ browser ไม่รองรับ |
+| **D. ทิ้ง Lavalink ใช้ extractor เอง (yt-dlp) ทำทุกอย่าง** | เรียบง่ายกว่า operationally แต่ requirement ของเจ้าของโปรเจกต์ระบุให้ใช้ Lavalink; และ ecosystem ของ Lavalink (source plugins, LavaSrc) คุ้มค่าในบทบาท resolver                                                                                                                                               |
+| **E. เล่นตรงจาก source โดยไม่ proxy**                      | เจอ CORS-tainted silence กับ MediaElementSource + ต้องเปิดเผย/ยอมรับ URL จากภายนอก → ไม่ปลอดภัย                                                                                                                                                                                                               |
 
 ## Consequences
 
 **บวก:**
+
 - ใช้ Lavalink ได้ตาม requirement โดยไม่ฝืนความเป็นจริงของมัน
 - EQ/Volume ทำที่ client = zero CPU ฝั่ง server, real-time, แยกต่อ user อัตโนมัติ
 - Latency ต่ำ (progressive HTTP + Range, ไม่มี segment delay แบบ HLS)
 - เปิดทางย้ายไปทางเลือก C ในอนาคตได้ (client รู้จักแค่ `/api/v1/stream/:id` — เบื้องหลังเปลี่ยนได้)
 
 **ลบ / ยอมรับ:**
+
 - Backend เป็น SPOF ของเสียง (ล่ม = เสียงหยุด) และกิน bandwidth ทั้งหมด
 - ไม่ gapless, seek ต้องพึ่ง Range support ของ source
 - Backend-authoritative position ต้องเชื่อ playback events จาก client (มี sanity check กันปลอม)

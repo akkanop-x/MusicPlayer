@@ -27,11 +27,11 @@
 
 ## 2. CORS & CSRF
 
-| ประเด็น   | การตัดสินใจ                                                                 |
-|-----------|----------------------------------------------------------------------------------|
-| CORS      | Allowlist origin เดียว (`CORS_ORIGIN` env — หน้า frontend); ไม่ใช้ `*` เด็ดขาด; อนุญาตเฉพาะ methods/headers ที่ใช้จริง |
-| CSRF      | Cookie (refresh) ใช้ `SameSite=Strict` + ตรวจ `Origin` header ทุก mutating request — ไม่ต้องพึ่ง CSRF token |
-| WS        | ตรวจ `Origin` ระหว่าง handshake — ปฏิเสธถ้าไม่ตรง allowlist                    |
+| ประเด็น | การตัดสินใจ                                                                                                            |
+| ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| CORS    | Allowlist origin เดียว (`CORS_ORIGIN` env — หน้า frontend); ไม่ใช้ `*` เด็ดขาด; อนุญาตเฉพาะ methods/headers ที่ใช้จริง |
+| CSRF    | Cookie (refresh) ใช้ `SameSite=Strict` + ตรวจ `Origin` header ทุก mutating request — ไม่ต้องพึ่ง CSRF token            |
+| WS      | ตรวจ `Origin` ระหว่าง handshake — ปฏิเสธถ้าไม่ตรง allowlist                                                            |
 
 ## 3. Rate Limiting & Abuse
 
@@ -80,13 +80,13 @@
 
 ## 9. Secrets Management
 
-| Secret             | เก็บไว้ที่ไหน                                       | ห้าม                                     |
-|--------------------|------------------------------------------------------|-------------------------------------------|
-| `JWT_SECRET`, `REFRESH_SECRET` | env ของ backend (dev: `.env` ไม่ commit; prod: secrets manager) | ไม่ปรากฏใน client bundle, log, error message |
-| `LAVALINK_PASSWORD`| env ของ backend + Lavalink container (shared via compose env) | ไม่ถึง browser (browser ไม่คุย Lavalink อยู่แล้ว) |
-| `DATABASE_URL`     | env เฉพาะ backend                                    | —                                          |
-| Access token       | memory ของ SPA เท่านั้น                              | ห้ามลง localStorage/sessionStorage         |
-| Refresh token      | httpOnly cookie (JS อ่านไม่ได้)                       | ห้ามลง JS-readable storage                  |
+| Secret                         | เก็บไว้ที่ไหน                                                   | ห้าม                                              |
+| ------------------------------ | --------------------------------------------------------------- | ------------------------------------------------- |
+| `JWT_SECRET`, `REFRESH_SECRET` | env ของ backend (dev: `.env` ไม่ commit; prod: secrets manager) | ไม่ปรากฏใน client bundle, log, error message      |
+| `LAVALINK_PASSWORD`            | env ของ backend + Lavalink container (shared via compose env)   | ไม่ถึง browser (browser ไม่คุย Lavalink อยู่แล้ว) |
+| `DATABASE_URL`                 | env เฉพาะ backend                                               | —                                                 |
+| Access token                   | memory ของ SPA เท่านั้น                                         | ห้ามลง localStorage/sessionStorage                |
+| Refresh token                  | httpOnly cookie (JS อ่านไม่ได้)                                 | ห้ามลง JS-readable storage                        |
 
 - `.env` อยู่ใน `.gitignore` ตั้งแต่ Phase 1; มี `.env.example` (ค่า dummy) เป็นเอกสาร
 - Log ต้อง redact: Authorization header, cookies, tokens, password — ทำใน logger wrapper ตั้งแต่ต้น
@@ -114,10 +114,10 @@
 
 ## 14. Risks
 
-| Risk                                | ระดับ | บรรเทา (อ้างอิงมาตราข้างบน)        |
-|--------------------------------------|--------|--------------------------------------|
-| SSRF ผ่าน stream proxy               | สูง    | §8 (allowlist + IP check + redirect policy) — มี integration test เฉพาะ |
-| XSS ผ่าน track metadata ภายนอก      | กลาง    | §6 (React escaping + CSP + URL sanitizer) |
-| Credential stuffing ที่ /auth/login  | กลาง    | §3 (lockout + rate limit + generic errors) |
-| Replay/forge playback events (WS)    | กลาง    | §7 (sanity checks + rate limits)    |
-| Dependency vulnerability             | กลาง    | §11 (audit + lockfile + renovate)   |
+| Risk                                | ระดับ | บรรเทา (อ้างอิงมาตราข้างบน)                                             |
+| ----------------------------------- | ----- | ----------------------------------------------------------------------- |
+| SSRF ผ่าน stream proxy              | สูง   | §8 (allowlist + IP check + redirect policy) — มี integration test เฉพาะ |
+| XSS ผ่าน track metadata ภายนอก      | กลาง  | §6 (React escaping + CSP + URL sanitizer)                               |
+| Credential stuffing ที่ /auth/login | กลาง  | §3 (lockout + rate limit + generic errors)                              |
+| Replay/forge playback events (WS)   | กลาง  | §7 (sanity checks + rate limits)                                        |
+| Dependency vulnerability            | กลาง  | §11 (audit + lockfile + renovate)                                       |

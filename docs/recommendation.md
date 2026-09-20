@@ -10,9 +10,13 @@
 ```ts
 interface RecommendationProvider {
   // หน้า home: "แนะนำสำหรับคุณ"
-  getHomeFeed(userId: string, limit: number): Promise<TrackDTO[]>
+  getHomeFeed(userId: string, limit: number): Promise<TrackDTO[]>;
   // autoplay + radio: ต่อเนื่องจาก seed, ห้ามซ้ำกับ exclude
-  getRadioTracks(seed: { trackId?: TrackId; artist?: string }, exclude: Set<TrackId>, limit: number): Promise<TrackDTO[]>
+  getRadioTracks(
+    seed: { trackId?: TrackId; artist?: string },
+    exclude: Set<TrackId>,
+    limit: number,
+  ): Promise<TrackDTO[]>;
 }
 ```
 
@@ -23,15 +27,15 @@ interface RecommendationProvider {
 
 ### 2.1 Candidate Generation (เก็บเป็น candidate pool พร้อม score)
 
-| แหล่ง candidate       | เกณฑ์/คำสั่งค้น                                | คะแนนฐาน |
-|-----------------------|-------------------------------------------------|-----------|
-| **Same Genre**        | `tracks.genres ∩ seed genres ≠ ∅` (GIN index)   | +6        |
-| Same Artist           | `tracks.artist = ศิลปินของ seed/liked`           | +4        |
-| Same Album            | `tracks.album = อัลบั้มของ seed`                  | +3        |
-| From Liked Tracks     | เพลงที่ user like (ที่ไม่อยู่ใน filter)            | +5        |
-| Recently Played       | history 7 วันล่าสุด (ใช้เป็น signal ทั้ง seed และ filter ตามบริบท) | +3 (seed weight) |
-| Frequently Played     | top-N จาก listening_history (count ≥ 3)           | +4        |
-| Co-played (phase ถัดไป) | เพลงที่ถูกเล่นต่อกันบ่อยใน history ของ user    | (defer)   |
+| แหล่ง candidate         | เกณฑ์/คำสั่งค้น                                                    | คะแนนฐาน         |
+| ----------------------- | ------------------------------------------------------------------ | ---------------- |
+| **Same Genre**          | `tracks.genres ∩ seed genres ≠ ∅` (GIN index)                      | +6               |
+| Same Artist             | `tracks.artist = ศิลปินของ seed/liked`                             | +4               |
+| Same Album              | `tracks.album = อัลบั้มของ seed`                                   | +3               |
+| From Liked Tracks       | เพลงที่ user like (ที่ไม่อยู่ใน filter)                            | +5               |
+| Recently Played         | history 7 วันล่าสุด (ใช้เป็น signal ทั้ง seed และ filter ตามบริบท) | +3 (seed weight) |
+| Frequently Played       | top-N จาก listening_history (count ≥ 3)                            | +4               |
+| Co-played (phase ถัดไป) | เพลงที่ถูกเล่นต่อกันบ่อยใน history ของ user                        | (defer)          |
 
 Home feed ใช้ "liked + frequently played" เป็น seed หลัก; radio ใช้ seed track ที่ส่งมา
 
@@ -60,13 +64,13 @@ score(candidate) =
 
 ## 3. Filtering (ห้ามปรากฏในผลลัพธ์)
 
-| Filter               | ที่มา                                   | เหตุผล                                     |
-|----------------------|------------------------------------------|----------------------------------------------|
-| Current track        | player state                             | กันเล่นเพลงเดิมซ้ำ                        |
-| Already in queue     | QueueState.upcoming                      | กันเพลงที่รอเล่นอยู่แล้ว                  |
-| Recently played      | history 50 รายการล่าสุด (สำหรับ radio/autoplay) | กันวนเร็ว (home feed ผ่อนคลายเป็น 20 รายการ) |
-| Skipped tracks       | history ที่ `skipped=true` 20 รายการล่าสุด | สัญญาณเชิงลบ — เพลงที่ถูก skip ไม่ควรกลับมาเร็ว |
-| Unplayable tracks    | `content_type` ไม่ supported / stream_url ตาย | กัน recommend แล้วเล่นไม่ได้               |
+| Filter            | ที่มา                                           | เหตุผล                                          |
+| ----------------- | ----------------------------------------------- | ----------------------------------------------- |
+| Current track     | player state                                    | กันเล่นเพลงเดิมซ้ำ                              |
+| Already in queue  | QueueState.upcoming                             | กันเพลงที่รอเล่นอยู่แล้ว                        |
+| Recently played   | history 50 รายการล่าสุด (สำหรับ radio/autoplay) | กันวนเร็ว (home feed ผ่อนคลายเป็น 20 รายการ)    |
+| Skipped tracks    | history ที่ `skipped=true` 20 รายการล่าสุด      | สัญญาณเชิงลบ — เพลงที่ถูก skip ไม่ควรกลับมาเร็ว |
+| Unplayable tracks | `content_type` ไม่ supported / stream_url ตาย   | กัน recommend แล้วเล่นไม่ได้                    |
 
 ## 4. Data ที่ใช้ (มีอยู่แล้วใน schema — database.md)
 
@@ -78,12 +82,12 @@ score(candidate) =
 
 ## 5. ทางไปสู่ ML (เก็บทางไว้ ไม่ implement)
 
-| ขั้น                | ทำอะไร                                                                 |
-|---------------------|-------------------------------------------------------------------------|
-| Phase 13+ (embed)   | เพิ่ม `MlProvider` implement interface เดียวกัน — สลับผ่าน config/DI   |
-| Implicit feedback    | มีข้อมูลพร้อมแล้ว: plays, skips, likes, queue adds (ทั้งหมดใน listening_history/liked_tracks) |
-| Cold start           | ใช้ rule-based ต่อ (fallback chain: MlProvider → RuleBasedProvider → popular) |
-| Offline training     | job แยก (นอก API process) — ระบบ API ไม่รู้จัก training เลย              |
+| ขั้น              | ทำอะไร                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| Phase 13+ (embed) | เพิ่ม `MlProvider` implement interface เดียวกัน — สลับผ่าน config/DI                          |
+| Implicit feedback | มีข้อมูลพร้อมแล้ว: plays, skips, likes, queue adds (ทั้งหมดใน listening_history/liked_tracks) |
+| Cold start        | ใช้ rule-based ต่อ (fallback chain: MlProvider → RuleBasedProvider → popular)                 |
+| Offline training  | job แยก (นอก API process) — ระบบ API ไม่รู้จัก training เลย                                   |
 
 ## 6. Radio specifics
 
@@ -105,9 +109,9 @@ score(candidate) =
 
 ## 9. Risks
 
-| Risk                                  | บรรเทา                                      |
-|----------------------------------------|----------------------------------------------|
-| Genre tag ในไฟล์ผู้ใช้ไม่ครบ/ไม่ตรงมาตรฐาน → pool แคบ | Ingest script อ่าน tag ให้ครบ + หน้า admin (phase หลัง) แก้ genre มือได้; fallback ตาม §2.1.1 |
-| Filter ทั้งหมดตัดจนไม่เหลือผลลัพธ์       | ถ้า pool ว่าง → คลาย filter ทีละตัวตามลำดับความเข้มงวด (recently played ออกก่อน, genre constraint ออกเป็นลำดับสุดท้าย) |
-| Radio วนเพลงเดิมเมื่อ library ของแนวนั้นเล็ก | Cap exclude ขนาด (เช่น ล่าสุด 200) ให้ pool หมุนกลับมาได้หลังพ้นหน้าต่าง |
-| Query หนักเมื่อ history โต              | จำกัด subquery ด้วย LIMIT + มี index; วางแผน materialize "user stats" ถ้า P95 > 300 ms |
+| Risk                                                  | บรรเทา                                                                                                                 |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Genre tag ในไฟล์ผู้ใช้ไม่ครบ/ไม่ตรงมาตรฐาน → pool แคบ | Ingest script อ่าน tag ให้ครบ + หน้า admin (phase หลัง) แก้ genre มือได้; fallback ตาม §2.1.1                          |
+| Filter ทั้งหมดตัดจนไม่เหลือผลลัพธ์                    | ถ้า pool ว่าง → คลาย filter ทีละตัวตามลำดับความเข้มงวด (recently played ออกก่อน, genre constraint ออกเป็นลำดับสุดท้าย) |
+| Radio วนเพลงเดิมเมื่อ library ของแนวนั้นเล็ก          | Cap exclude ขนาด (เช่น ล่าสุด 200) ให้ pool หมุนกลับมาได้หลังพ้นหน้าต่าง                                               |
+| Query หนักเมื่อ history โต                            | จำกัด subquery ด้วย LIMIT + มี index; วางแผน materialize "user stats" ถ้า P95 > 300 ms                                 |

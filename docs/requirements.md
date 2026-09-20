@@ -143,14 +143,14 @@
 
 ## 6. Non-Functional Requirements
 
-| หมวด          | ข้อกำหนด                                                                 |
-|---------------|--------------------------------------------------------------------------|
-| Performance   | Start playback < 2 s (P95); search < 2 s (P95); UI interaction < 100 ms  |
-| Compatibility | Chrome/Edge/Firefox/Safari สองเวอร์ชันล่าสุด; desktop + mobile browser   |
-| Auth          | ต้องล็อกอินก่อนใช้ (MVP); ไม่มี anonymous playback                        |
-| Security      | ดู security.md — โดยเฉพาะ SSRF ใน stream proxy                            |
-| Reliability   | WS disconnect ต้อง reconnect อัตโนมัติและ resync state ได้                |
-| Data          | Listening history ต้องไม่หายเมื่อ refresh หรือ reconnect                    |
+| หมวด          | ข้อกำหนด                                                                |
+| ------------- | ----------------------------------------------------------------------- |
+| Performance   | Start playback < 2 s (P95); search < 2 s (P95); UI interaction < 100 ms |
+| Compatibility | Chrome/Edge/Firefox/Safari สองเวอร์ชันล่าสุด; desktop + mobile browser  |
+| Auth          | ต้องล็อกอินก่อนใช้ (MVP); ไม่มี anonymous playback                      |
+| Security      | ดู security.md — โดยเฉพาะ SSRF ใน stream proxy                          |
+| Reliability   | WS disconnect ต้อง reconnect อัตโนมัติและ resync state ได้              |
+| Data          | Listening history ต้องไม่หายเมื่อ refresh หรือ reconnect                |
 
 ---
 

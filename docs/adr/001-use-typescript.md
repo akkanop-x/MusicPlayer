@@ -19,11 +19,13 @@
 ## Consequences
 
 **บวก:**
+
 - Contract เดียว compile-time ตรวจทั้งสองฝั่ง (เปลี่ยน event payload → compile error ทั้ง repo)
 - queue/player logic เขียนครั้งเดียวใช้สองที่ + test ชุดเดียว
 - Tooling ชุดเดียว (Vitest, ESLint)
 
 **ลบ:**
+
 - ต้องดูแล monorepo (workspace protocol, build order)
 - Node single-thread: งาน CPU หนัก (ถ้าอนาคตมี transcode) ต้องแยก process/service — แต่ architecture ไม่ขวางทาง (stream worker แยกได้)
 

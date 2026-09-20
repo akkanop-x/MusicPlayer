@@ -6,6 +6,7 @@
 ## Context
 
 Frontend มี state 3 พิวด้วยกัน:
+
 1. **Server state** — search results, playlists, likes, history, settings (fetch/cache/invalidate)
 2. **Player/Queue mirror** — สำเนา state ของ backend ที่ได้รับผ่าน WS/REST + ต้องอัปเดตถี่หน่อย (progress bar ทุก 250 ms)
 3. **UI state** — panel เปิด/ปิด ฯลฯ
@@ -27,11 +28,13 @@ Frontend มี state 3 พิวด้วยกัน:
 ## Consequences
 
 **บวก:**
+
 - เขียนน้อย, ไฟล์ store เป็น plain TS (test ง่ายไม่ต้อง render)
 - Selector subscriptions แก้ปัญหา re-render ของ progress ตรงจุด
 - TanStack Query จัดการ cache/invalidate/retry ของทุก endpoint แบบมาตรฐานเดียว
 
 **ลบ:**
+
 - สองไลบรารี (แต่ขอบเขตการใช้แยกกันชัดเจนตามกฎใน decision — เขียนกฎนี้ไว้ใน frontend.md แล้ว)
 - ไม่มี Redux DevTools time-travel (Zustand มี devtools middleware พอใช้)
 

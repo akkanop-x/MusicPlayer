@@ -21,18 +21,18 @@
 
 ## 2. Operations
 
-| Operation     | พฤติกรรม                                                                                     |
-|---------------|-------------------------------------------------------------------------------------------------|
-| add(trackIds) | append ท้าย upcoming; dedupe? **อนุญาตให้ซ้ำ** (เหมือน Spotify)                                   |
-| addNext       | insert ต่อจากตำแหน่งแรกของ upcoming (ตำแหน่ง 0)                                                  |
-| remove(itemId)| ลบจาก upcoming; ถ้าเป็น current → ทำเหมือน skip; ห้ามลบจาก history (history immutable)           |
-| move(itemId, to) | ย้ายภายใน upcoming เท่านั้น                                                                  |
-| clear         | `upcoming` เท่านั้น; `clear all` = upcoming + history + current → IDLE                            |
-| shuffle(on)   | สับ upcoming เท่านั้น (ไม่แตะ current/history) — เก็บ original order ไว้ (ดู §4)                 |
-| unshuffle     | คืน upcoming ตาม original order                                                                |
-| skip          | ดู §5 advance()                                                                                |
-| previous      | ดู §6                                                                                          |
-| repeat        | ผูกกับ advance() — ดู §5                                                                       |
+| Operation        | พฤติกรรม                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| add(trackIds)    | append ท้าย upcoming; dedupe? **อนุญาตให้ซ้ำ** (เหมือน Spotify)                        |
+| addNext          | insert ต่อจากตำแหน่งแรกของ upcoming (ตำแหน่ง 0)                                        |
+| remove(itemId)   | ลบจาก upcoming; ถ้าเป็น current → ทำเหมือน skip; ห้ามลบจาก history (history immutable) |
+| move(itemId, to) | ย้ายภายใน upcoming เท่านั้น                                                            |
+| clear            | `upcoming` เท่านั้น; `clear all` = upcoming + history + current → IDLE                 |
+| shuffle(on)      | สับ upcoming เท่านั้น (ไม่แตะ current/history) — เก็บ original order ไว้ (ดู §4)       |
+| unshuffle        | คืน upcoming ตาม original order                                                        |
+| skip             | ดู §5 advance()                                                                        |
+| previous         | ดู §6                                                                                  |
+| repeat           | ผูกกับ advance() — ดู §5                                                               |
 
 ## 3. Model ข้อมูล (in-memory + snapshot)
 
@@ -53,6 +53,7 @@ QueueState {
 ปัญหาของ shuffle แบบง่าย (sort random ทุกครั้ง): ผู้ใช้กด shuffle สองครั้งได้ลำดับคนละแบบ และ previous พัง
 
 **แนวทาง (แบบ Spotify):**
+
 - เมื่อเปิด shuffle: สุ่ม permutation ครั้งเดียว (`shuffleOrder = shuffleIndices(upcoming.length)` โดยเพลงถัดไปคือ `upcoming[shuffleOrder[0]]`... จริง ๆ คือเก็บ upcoming ตาม original order แล้วเดินตาม shuffleOrder) — **UI แสดง upcoming ตามลำดับ shuffle** เพื่อไม่งง
 - เมื่อเพิ่มเพลงใหม่ขณะ shuffle: แทรกเข้า shuffleOrder ตำแหน่งสุ่ม (ไม่ใช่ท้าย)
 - เมื่อปิด shuffle: เรียง upcoming กลับตาม `originalPosition` ที่แนบกับ item ตั้งแต่เพิ่มเข้ามา
@@ -106,15 +107,15 @@ previous():
 
 ## 9. Edge Cases
 
-| กรณี                                        | พฤติกรรม                                                     |
-|----------------------------------------------|------------------------------------------------------------------|
-| เพิ่มเพลงซ้ำ 10 ครั้ง                       | อนุญาต; queue มี 10 items ที่ track เดียวกัน (id ต่างกัน)         |
-| ลบ current track                             | = skip (advance)                                                  |
-| unshuffle หลังจากเพิ่ม/ลบ/ย้ายเพลงไปแล้ว    | คืนตาม original_position ของ items ที่เหลือ (สิ่งที่ถูกลบหายไปตาม) |
-| shuffle แล้ว previous จนหมด history          | ปุ่ม disabled; เล่น current ต่อ                                  |
-| previous แล้วเพลงใน history ถูกลบจากระบบ    | ข้ามไปเพลงก่อนหน้าใน history (track ถูก mark deleted → ไม่เล่นได้) |
-| repeat=all กับ queue 1 เพลง                  | เล่นเพลงเดียววนไปเรื่อย ๆ (เท่า repeat=one ทางปฏิบัติ)             |
-| radio + ผู้ใช้ลบเพลงที่เพิ่งถูก recommend     | เติมใหม่ครั้งถัดไป exclude เพลงนั้นด้วย                            |
+| กรณี                                      | พฤติกรรม                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------ |
+| เพิ่มเพลงซ้ำ 10 ครั้ง                     | อนุญาต; queue มี 10 items ที่ track เดียวกัน (id ต่างกัน)          |
+| ลบ current track                          | = skip (advance)                                                   |
+| unshuffle หลังจากเพิ่ม/ลบ/ย้ายเพลงไปแล้ว  | คืนตาม original_position ของ items ที่เหลือ (สิ่งที่ถูกลบหายไปตาม) |
+| shuffle แล้ว previous จนหมด history       | ปุ่ม disabled; เล่น current ต่อ                                    |
+| previous แล้วเพลงใน history ถูกลบจากระบบ  | ข้ามไปเพลงก่อนหน้าใน history (track ถูก mark deleted → ไม่เล่นได้) |
+| repeat=all กับ queue 1 เพลง               | เล่นเพลงเดียววนไปเรื่อย ๆ (เท่า repeat=one ทางปฏิบัติ)             |
+| radio + ผู้ใช้ลบเพลงที่เพิ่งถูก recommend | เติมใหม่ครั้งถัดไป exclude เพลงนั้นด้วย                            |
 
 ## 10. สิ่งที่ต้อง test ให้ครบ (โยงไป testing.md)
 

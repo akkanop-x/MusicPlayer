@@ -1,7 +1,7 @@
 # Audio Pipeline
 
 > ⚠️ **ไฟล์นี้คือไฟล์ที่สำคัญที่สุดของโปรเจกต์** — วิเคราะห์ความเป็นไปได้จริงของ pipeline เสียง
-> ความเชื่อที่ผิดที่พบบ่อย: *"Lavalink ส่ง audio ไป browser ได้"* → **ไม่ได้** (พิสูจน์ด้านล่าง)
+> ความเชื่อที่ผิดที่พบบ่อย: _"Lavalink ส่ง audio ไป browser ได้"_ → **ไม่ได้** (พิสูจน์ด้านล่าง)
 > คู่กับ [ADR-003](./adr/003-audio-pipeline.md)
 
 ---
@@ -16,13 +16,13 @@ Music Source → Lavalink → Audio Stream → Browser → Web Audio API → EQ 
 
 ### 1.1 Lavalink ทำอะไรได้จริง (อ้างอิง lavalink.dev — Lavalink v4)
 
-| ความสามารถ                              | มีจริง? | หมายเหตุ                                                                 |
-|------------------------------------------|---------|---------------------------------------------------------------------------|
-| ค้นหา/resolve track จากหลาย source        | ✅       | `GET /v4/loadtracks?identifier=ytsearch:...` คืน metadata + `encoded`     |
-| Decode track / metadata                   | ✅       | `GET /v4/decodetrack`, `POST /v4/decodetracks`                            |
-| เล่นเพลง + seek/volume/filters            | ✅       | แต่เล่นผ่าน **Discord voice connection เท่านั้น** (ส่ง Opus ทาง UDP ไป Discord voice server) |
-| ส่ง audio stream ออกทาง HTTP/WebSocket ให้ client ทั่วไป | ❌ | **ไม่มี endpoint นี้ใน v4 และไม่มีแผนมี** — Lavalink ออกแบบมาเป็น "audio sending node" ของ Discord bot |
-| คืน direct stream URL จาก loadtracks      | ❌       | ฟิลด์ `uri` คือ source page URL (เช่น `https://youtube.com/watch?v=...`) ไม่ใช่ media URL — stream จริงถูก resolve ภายใน Lavaplayer ตอนเล่นและไม่ถูก expose |
+| ความสามารถ                                               | มีจริง? | หมายเหตุ                                                                                                                                                    |
+| -------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ค้นหา/resolve track จากหลาย source                       | ✅      | `GET /v4/loadtracks?identifier=ytsearch:...` คืน metadata + `encoded`                                                                                       |
+| Decode track / metadata                                  | ✅      | `GET /v4/decodetrack`, `POST /v4/decodetracks`                                                                                                              |
+| เล่นเพลง + seek/volume/filters                           | ✅      | แต่เล่นผ่าน **Discord voice connection เท่านั้น** (ส่ง Opus ทาง UDP ไป Discord voice server)                                                                |
+| ส่ง audio stream ออกทาง HTTP/WebSocket ให้ client ทั่วไป | ❌      | **ไม่มี endpoint นี้ใน v4 และไม่มีแผนมี** — Lavalink ออกแบบมาเป็น "audio sending node" ของ Discord bot                                                      |
+| คืน direct stream URL จาก loadtracks                     | ❌      | ฟิลด์ `uri` คือ source page URL (เช่น `https://youtube.com/watch?v=...`) ไม่ใช่ media URL — stream จริงถูก resolve ภายใน Lavaplayer ตอนเล่นและไม่ถูก expose |
 
 **สรุป:** ขั้น `Lavalink → Audio Stream → Browser` **ทำไม่ได้โดยตรง** ไม่ว่าจะ config หรือเขียน plugin แค่ไหนก็ตามที่เป็น Lavalink v4 ปกติ — Lavalink ไม่มี "audio output to non-Discord client" ให้ต่อ
 
@@ -30,11 +30,11 @@ Music Source → Lavalink → Audio Stream → Browser → Web Audio API → EQ 
 
 เบราว์เซอร์เล่นเสียงได้ 3 ทางหลัก:
 
-| ทาง                                | กลไก                                     | เหมาะกับเรา? |
-|------------------------------------|-------------------------------------------|---------------|
-| `<audio>` / `Audio()` element      | Browser จัดการ fetch+decode เอง, รองรับ HTTP Range (seek ได้) | ✅ **เลือกทางนี้** |
-| MediaSource Extensions (MSE)       | ป้อน segment เอง (เหมือน HLS.js/DASH.js)   | ยังไม่จำเป็น — ใช้เมื่อทำ adaptive bitrate / server-side transcode ในอนาคต |
-| WebAudio `AudioBuffer` ทั้งก้อน     | โหลดไฟล์ทั้งไฟล์มา decode                  | ไม่เหมาะ — กิน RAM, seek ลำบาก |
+| ทาง                             | กลไก                                                          | เหมาะกับเรา?                                                               |
+| ------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `<audio>` / `Audio()` element   | Browser จัดการ fetch+decode เอง, รองรับ HTTP Range (seek ได้) | ✅ **เลือกทางนี้**                                                         |
+| MediaSource Extensions (MSE)    | ป้อน segment เอง (เหมือน HLS.js/DASH.js)                      | ยังไม่จำเป็น — ใช้เมื่อทำ adaptive bitrate / server-side transcode ในอนาคต |
+| WebAudio `AudioBuffer` ทั้งก้อน | โหลดไฟล์ทั้งไฟล์มา decode                                     | ไม่เหมาะ — กิน RAM, seek ลำบาก                                             |
 
 ทางที่เลือก: **Backend สตรีม audio bytes ให้ browser ผ่าน HTTP (รองรับ Range requests) แล้วให้ `<audio>` element เล่น** โดยต่อเข้า Web Audio API เพื่อทำ EQ
 
@@ -75,12 +75,12 @@ Browser │  <audio src="/api/v1/stream/{trackId}">                      │
 
 **หน้าที่แบ่งชัดเจน:**
 
-| ใคร           | ทำอะไร                                                      |
-|----------------|--------------------------------------------------------------|
-| Lavalink       | แปลง "คำค้น/ลิงก์" → track metadata มาตรฐาน (ไม่แตะเสียงเลยแม้แต่เพลงเดียว) |
-| Resolver service (แยก container) | แปลง trackId → stream URL ที่ใช้ได้ (URL มีอายุสั้น + ผูก IP ของ server) |
-| Backend        | เป็นแหล่งสตรีมเดียวที่ browser รู้จัก (same-origin) + intent state + prebuffer |
-| Browser        | Decode + buffer ล่วงหน้า + EQ + volume ทั้งหมด (Web Audio API) |
+| ใคร                              | ทำอะไร                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------ |
+| Lavalink                         | แปลง "คำค้น/ลิงก์" → track metadata มาตรฐาน (ไม่แตะเสียงเลยแม้แต่เพลงเดียว)    |
+| Resolver service (แยก container) | แปลง trackId → stream URL ที่ใช้ได้ (URL มีอายุสั้น + ผูก IP ของ server)       |
+| Backend                          | เป็นแหล่งสตรีมเดียวที่ browser รู้จัก (same-origin) + intent state + prebuffer |
+| Browser                          | Decode + buffer ล่วงหน้า + EQ + volume ทั้งหมด (Web Audio API)                 |
 
 ## 3. Audio Transport & Codec
 
@@ -119,6 +119,7 @@ Browser │  <audio src="/api/v1/stream/{trackId}">                      │
 ```
 
 การลด latency:
+
 - ยิง `GET /stream` ทันทีที่ได้ trackId (ไม่รอ WS round-trip)
 - Cache stream URL ต่อ trackId อายุสั้น (เช่น 60 s) — เพลงที่ seek ถี่ ไม่ต้อง resolve ใหม่ทุกครั้ง
 - Preload เพลงถัดไป: เมื่อเพลงปัจจุบันเหลือ < 30 s → resolve + warm connection stream ถัดไป
@@ -131,10 +132,10 @@ YouTube ──(fetch)──► [ server RAM: prebuffer 2–5 s ] ──(pipe + R
                          ไม่ลง disk ตลอดอายุ pipeline
 ```
 
-| คนเติม buffer | ทำอะไร | ทำไม |
-|----------------|----------|--------|
+| คนเติม buffer          | ทำอะไร                                | ทำไม                                                       |
+| ---------------------- | ------------------------------------- | ---------------------------------------------------------- |
 | Server (StreamService) | เก็บช่วงแรก 2–5 s ไว้ก่อนเริ่มส่งกลับ | กัน YouTube ตอบช้า/กระตุกช่วงต้น ทำให้ "กด play แล้วเงียบ" |
-| Browser (`<audio>`) | ดึง Range ล่วงหน้า ~30–60 s อัตโนมัติ | network กระตุกภายหลังไม่กระทบเสียงทันที |
+| Browser (`<audio>`)    | ดึง Range ล่วงหน้า ~30–60 s อัตโนมัติ | network กระตุกภายหลังไม่กระทบเสียงทันที                    |
 
 - **ห้าม fetch ทั้งเพลงเข้า RAM** — เวลาเริ่มเล่นช้าลง, RAM โตตาม listener (~1 MB/นาที/คน), จังหวะดึงเร็วผิดปกติเสี่ยงถูก YouTube rate-limit
 - Whole-track RAM cache (per-track, สำหรับเพลงยอดฮิต) และ MSE → เก็บเป็น optimization เมื่อวัดแล้วเจอปัญหาจริง (trigger ดูใน ADR-008)
@@ -154,12 +155,12 @@ YouTube ──(fetch)──► [ server RAM: prebuffer 2–5 s ] ──(pipe + R
 
 ## 7. Reconnection & Resilience
 
-| เหตุการณ์                | พฤติกรรมที่ต้อง implement                                       |
-|---------------------------|------------------------------------------------------------------|
-| Network drop กลางเพลง      | audio element เกิด `stalled`/`error` → AudioEngine retry 3 ครั้ง (backoff 1s/2s/4s) จาก position ล่าสุด → ถ้า fail ส่ง `TRACK_STALLED` ให้ backend ข้ามเพลง |
-| WS ขาด                     | เสียงเล่นต่อ (stream ไม่ผ่าน WS) → reconnect backoff → `SYNC_REQUEST` ดึง state ล่าสุด → ถ้า backend บอกเพลงเปลี่ยนไปแล้ว ให้สลับตาม |
-| Refresh หน้าเว็บ           | โหลด player state จาก REST (`GET /api/v1/player`) → กด play ต่อจาก position เดิม (autoplay policy บังคับให้มี gesture ก่อน — แสดงปุ่ม "เล่นต่อ") |
-| Backend restart            | Player/queue state ถูก snapshot ลง DB → restore ตอน boot; client reconnect แล้ว resync |
+| เหตุการณ์             | พฤติกรรมที่ต้อง implement                                                                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Network drop กลางเพลง | audio element เกิด `stalled`/`error` → AudioEngine retry 3 ครั้ง (backoff 1s/2s/4s) จาก position ล่าสุด → ถ้า fail ส่ง `TRACK_STALLED` ให้ backend ข้ามเพลง |
+| WS ขาด                | เสียงเล่นต่อ (stream ไม่ผ่าน WS) → reconnect backoff → `SYNC_REQUEST` ดึง state ล่าสุด → ถ้า backend บอกเพลงเปลี่ยนไปแล้ว ให้สลับตาม                        |
+| Refresh หน้าเว็บ      | โหลด player state จาก REST (`GET /api/v1/player`) → กด play ต่อจาก position เดิม (autoplay policy บังคับให้มี gesture ก่อน — แสดงปุ่ม "เล่นต่อ")            |
+| Backend restart       | Player/queue state ถูก snapshot ลง DB → restore ตอน boot; client reconnect แล้ว resync                                                                      |
 
 ## 8. EQ Processing (สรุป — รายละเอียดใน equalizer.md)
 
@@ -174,12 +175,12 @@ YouTube ──(fetch)──► [ server RAM: prebuffer 2–5 s ] ──(pipe + R
 
 ## 10. ทางเลือกที่พิจารณาแล้ว (สรุป — ฉบับเต็มใน ADR-003)
 
-| ทางเลือก                                                      | ผลลัพธ์           |
-|----------------------------------------------------------------|-------------------|
-| A. Lavalink ส่งเสียงถึง browser โดยตรง                          | ❌ ไม่มีอยู่จริง   |
-| **B. (เลือก) Lavalink resolve + backend proxy + browser render ผ่าน Web Audio** | ✅ MVP เร็ว, EQ ทำที่ client ได้ฟรี, latency ต่ำ |
-| C. Server-side transcode (FFmpeg → HLS/ICY) → MSE ที่ browser   | ⏸ หนัก (CPU), latency HLS สูง (2–6 s) — เก็บไว้เป็นทางเลือก phase ถัดไป เมื่อต้องการ server-side EQ จริง / sync หลายอุปกรณ์แบบเป๊ะ ๆ / transcode codec |
-| D. ทิ้ง Lavalink ใช้ extractor เอง (yt-dlp) ทำทั้ง search+resolve | ⏸ ง่ายกว่า operationally แต่เสีย ecosystem ของ Lavalink (LavaSrc ฯลฯ) — ตาม requirement ผู้ใช้ต้องการ Lavalink จึงคงไว้ในบทบาท resolver |
+| ทางเลือก                                                                        | ผลลัพธ์                                                                                                                                                |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A. Lavalink ส่งเสียงถึง browser โดยตรง                                          | ❌ ไม่มีอยู่จริง                                                                                                                                       |
+| **B. (เลือก) Lavalink resolve + backend proxy + browser render ผ่าน Web Audio** | ✅ MVP เร็ว, EQ ทำที่ client ได้ฟรี, latency ต่ำ                                                                                                       |
+| C. Server-side transcode (FFmpeg → HLS/ICY) → MSE ที่ browser                   | ⏸ หนัก (CPU), latency HLS สูง (2–6 s) — เก็บไว้เป็นทางเลือก phase ถัดไป เมื่อต้องการ server-side EQ จริง / sync หลายอุปกรณ์แบบเป๊ะ ๆ / transcode codec |
+| D. ทิ้ง Lavalink ใช้ extractor เอง (yt-dlp) ทำทั้ง search+resolve               | ⏸ ง่ายกว่า operationally แต่เสีย ecosystem ของ Lavalink (LavaSrc ฯลฯ) — ตาม requirement ผู้ใช้ต้องการ Lavalink จึงคงไว้ในบทบาท resolver                |
 
 ## 11. Assumptions
 
@@ -207,11 +208,11 @@ YouTube ──(fetch)──► [ server RAM: prebuffer 2–5 s ] ──(pipe + R
 
 ## 14. Risks
 
-| Risk                                     | ระดับ | บรรเทา                                                     |
-|-------------------------------------------|--------|--------------------------------------------------------------|
-| SSRF ผ่าน stream proxy                     | สูง    | ออกแบบ guard ไว้ใน security.md §stream-proxy (allowlist, บล็อก private IP, resolve แล้วตรวจ IP ก่อน fetch) |
+| Risk                                                              | ระดับ   | บรรเทา                                                                                                     |
+| ----------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| SSRF ผ่าน stream proxy                                            | สูง     | ออกแบบ guard ไว้ใน security.md §stream-proxy (allowlist, บล็อก private IP, resolve แล้วตรวจ IP ก่อน fetch) |
 | **YouTube extraction พัง = ไม่มีเพลงเล่นทั้งแอป** (single-source) | **สูง** | resolver แยก container อัปเดต dependency ง่าย + หน้า source status + local ingest เป็น fallback (Phase 14) |
-| Bandwidth ผ่าน backend ×2 (ทุกวินาทีที่ฟัง) | **สูง** | รับได้ใน MVP; trigger แก้: per-track RAM cache / CDN / self-hosted (ADR-008 §ประเมินใหม่) |
-| ถูก YouTube rate-limit/block IP จาก traffic จริง | กลาง | rate limit ต่อ user + จำกัด concurrent streams ≤ 2 + prebuffer เท่านั้น (ห้าม fetch ทั้งเพลง) |
-| YouTube ไม่มี genre tag → recommendation แนวเพลงพัง | กลาง | genre enrichment จาก Spotify Web API (artist genres, cache) — ผูกเป็น dependency ตั้งแต่ Phase 3 |
-| Safari MediaElementSource พฤติกรรมต่างจาก Chrome | กลาง | มี E2E test ครอบ Safari (ดู testing.md)                      |
+| Bandwidth ผ่าน backend ×2 (ทุกวินาทีที่ฟัง)                       | **สูง** | รับได้ใน MVP; trigger แก้: per-track RAM cache / CDN / self-hosted (ADR-008 §ประเมินใหม่)                  |
+| ถูก YouTube rate-limit/block IP จาก traffic จริง                  | กลาง    | rate limit ต่อ user + จำกัด concurrent streams ≤ 2 + prebuffer เท่านั้น (ห้าม fetch ทั้งเพลง)              |
+| YouTube ไม่มี genre tag → recommendation แนวเพลงพัง               | กลาง    | genre enrichment จาก Spotify Web API (artist genres, cache) — ผูกเป็น dependency ตั้งแต่ Phase 3           |
+| Safari MediaElementSource พฤติกรรมต่างจาก Chrome                  | กลาง    | มี E2E test ครอบ Safari (ดู testing.md)                                                                    |

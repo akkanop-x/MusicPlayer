@@ -21,12 +21,14 @@
 ## Consequences
 
 **บวก:**
+
 - Relation + constraints (RESTRICT/CASCADE) ปกป้องความสมบูรณ์ข้อมูลที่สำคัญ (history อ้างถึง track ที่มีจริง)
 - `pg_trgm` ครอบ local search ได้โดยไม่ต้องตั้ง search engine เพิ่ม (Elasticsearch ฯลฯ)
 - JSONB เก็บ EQ bands แบบ forward-compatible
 - Drizzle: schema-as-code + migration SQL ที่ review ได้ + zero magic
 
 **ลบ:**
+
 - ต้องดูแล migration discipline (ทุก schema change ผ่าน `drizzle-kit generate` + review)
 - Postgres ต้องมีใน dev environment (แก้ด้วย Docker Compose ตั้งแต่ Phase 1)
 

@@ -15,6 +15,7 @@
 **Dependencies:** —
 
 **DoD:**
+
 - [x] `docs/` ครบตามโครงสร้างที่กำหนด + ADR ≥ 5 ฉบับ
 - [x] ทุกไฟล์ระบุ Assumptions / Open Questions / Risks
 - [x] **ผู้ใช้ review และอนุมัติ** ← อนุมัติเมื่อ 2026-09-20 ("เริ่มทำ Phase ที่ 1")
@@ -24,6 +25,7 @@
 **Goal:** Skeleton monorepo + infra รันได้ด้วยคำสั่งเดียว
 
 **Tasks:**
+
 - pnpm workspace: `apps/web` (Vite React TS), `apps/server` (Fastify TS), `packages/shared`
 - Tailwind + ESLint + Prettier + Vitest setup, `.env.example`, `.gitignore` (รวม `.env`)
 - `docker-compose.yml`: postgres + lavalink + resolver (placeholder) + server + web
@@ -39,6 +41,7 @@
 **Goal:** Backend คุยกับ Lavalink ได้จริง (ครั้งแรกของ "ความจริงเจอกับเอกสาร")
 
 **Tasks:**
+
 - ตั้ง Lavalink v4 จริงใน compose — **verify application.yml กับตัวอย่างของเวอร์ชันที่ pin** (ตาม lavalink.md §2.2)
 - **ติดตั้ง youtube-source plugin** (สำคัญ — source หลักของ MVP ตาม ADR-008)
 - **ติดตั้ง LavaSrc plugin + Spotify client credentials** (metadata/`spsearch` — grilling 2026-09-20)
@@ -55,6 +58,7 @@
 **Goal:** เสียงจริงจาก YouTube เล่นใน browser ผ่าน proxy ของเรา — zero storage
 
 **Tasks:**
+
 - **Resolver service แยก container** (yt-dlp based): trackId → stream URL + cache URL อายุสั้น (~60 s)
 - `StreamService`: in-memory proxy + Range/206 + **prebuffer 2–5 s** + SSRF guards (allowlist googlevideo hosts; soundcloud เพิ่มเมื่อทำ post-MVP) + **stream auth ด้วย session cookie**
 - **Genre enrichment จาก Spotify Web API** (artist genres → `tracks.genres`, cache) — YouTube ไม่มี genre tag (จำเป็นต่อ recommendation แนวเพลง)
@@ -69,6 +73,7 @@
 **Goal:** State machine + คำสั่งพื้นฐานครบ
 
 **Tasks:**
+
 - `packages/shared/playerState` (pure) + unit tests ครบทุก transition
 - Backend PlayerService + REST endpoints (api.md §4)
 - Frontend AudioEngine + PlayerBar (UI หยาบ ๆ ได้)
@@ -83,6 +88,7 @@
 **Goal:** Queue system เต็มรูปแบบตาม queue.md
 
 **Tasks:**
+
 - `packages/shared/queueLogic` + unit tests ครบ (รวมตัวอย่าง A→D→B→C)
 - QueueService + persistence snapshot + REST endpoints
 - Frontend QueuePanel
@@ -96,6 +102,7 @@
 **Goal:** Search เต็มรูปแบบ (YouTube/YTMusic + Spotify metadata + library ที่เคย resolve)
 
 **Tasks:**
+
 - ytsearch/ytmsearch/**spsearch** integration + debounce UI + pagination
 - **Spotify playlist import** (วางลิงก์ playlist จาก Spotify → ได้ track ทั้งชุด, ผ่าน LavaSrc)
 - Search ภายใน library ที่เคย resolve (pg_trgm บน title/artist) รวมเข้าผลลัพธ์
@@ -110,6 +117,7 @@
 **Goal:** Realtime sync จริง
 
 **Tasks:**
+
 - Socket.IO server + auth handshake + rooms
 - ทุก event ตาม websocket.md + client reconnect + SYNC_REQUEST
 - Multi-tab test
@@ -123,6 +131,7 @@
 **Goal:** Equalizer ใช้งานได้จริง
 
 **Tasks:**
+
 - eqGraph + OfflineAudioContext tests + compressor safety
 - Preset endpoints + seed system presets + EQ UI + persistence
 - EQ_CHANGED sync ข้ามอุปกรณ์
@@ -136,6 +145,7 @@
 **Goal:** UI/UX ใกล้ Spotify ตาม requirements
 
 **Tasks:**
+
 - ทุกหน้า: Home, Search, Library, Playlist, Settings + PlayerBar/NowPlaying สมบูรณ์
 - **i18n ไทย/อังกฤษ** (react-i18next — locale ทุก string, สลับใน Settings)
 - **Media Session API** (ปุ่มหูฟัง/lockscreen + artwork — grilling 2026-09-20)
@@ -181,6 +191,7 @@
 **Goal:** Hardening + deploy-ready
 
 **Tasks:**
+
 - CI เต็มรูปแบบ (unit + integration + E2E 3 browsers + nightly Lavalink จริง)
 - Security review ผ่าน checklist security.md (โดยเฉพาะ SSRF suite, headers, rate limits)
 - Performance: P95 play < 2 s, search < 2 s (วัดด้วย k6/Lighthouse), load test /stream
@@ -196,6 +207,7 @@
 **Goal:** เพิ่มความทนทานให้ระบบ — มี source สำรองเมื่อ YouTube/SoundCloud extraction พัง ([ADR-008](./adr/008-youtube-first-no-local-storage.md) เหลือไว้เป็น fallback ไม่ใช่ primary)
 
 **Tasks:**
+
 - Media volume + ingest script (สแกนโฟลเดอร์, อ่าน ID3/Vorbis tags รวม genre)
 - `StreamService` เพิ่ม source ชนิด `local` (serve จาก disk ผ่าน proxy เดิม)
 - Feature flag `SOURCES_LOCAL` + หน้า admin (จัดการ import)

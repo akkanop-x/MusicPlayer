@@ -24,12 +24,8 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   displayName: varchar("display_name", { length: 100 }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const tracks = pgTable(
@@ -54,15 +50,9 @@ export const tracks = pgTable(
     artworkUrl: text("artwork_url"),
     isrc: varchar("isrc", { length: 15 }),
     lavalinkEncoded: text("lavalink_encoded"),
-    resolvedAt: timestamp("resolved_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex("tracks_source_uq").on(t.sourceName, t.sourceIdentifier),
@@ -87,12 +77,8 @@ export const playlists = pgTable(
     coverUrl: text("cover_url"),
     isDeleted: boolean("is_deleted").notNull().default(false),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("playlists_user_idx").on(t.userId),
@@ -113,16 +99,10 @@ export const playlistTracks = pgTable(
       .notNull()
       .references(() => tracks.id, { onDelete: "restrict" }),
     position: integer("position").notNull(),
-    addedAt: timestamp("added_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    uniqueIndex("playlist_tracks_position_uq").on(t.playlistId, t.position),
-  ],
+  (t) => [uniqueIndex("playlist_tracks_position_uq").on(t.playlistId, t.position)],
 );
 
 export const likedTracks = pgTable(
@@ -134,9 +114,7 @@ export const likedTracks = pgTable(
     trackId: uuid("track_id")
       .notNull()
       .references(() => tracks.id, { onDelete: "cascade" }),
-    likedAt: timestamp("liked_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    likedAt: timestamp("liked_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.trackId] }),
@@ -154,17 +132,13 @@ export const listeningHistory = pgTable(
     trackId: uuid("track_id")
       .notNull()
       .references(() => tracks.id, { onDelete: "restrict" }),
-    playedAt: timestamp("played_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    playedAt: timestamp("played_at", { withTimezone: true }).notNull().defaultNow(),
     msPlayed: integer("ms_played").notNull(),
     completed: boolean("completed").notNull(),
     skipped: boolean("skipped").notNull(),
     contextType: varchar("context_type", { length: 20 }),
     contextId: uuid("context_id"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("listening_history_user_played_at_idx").on(t.userId, t.playedAt.desc()),
@@ -182,12 +156,8 @@ export const eqPresets = pgTable(
     name: varchar("name", { length: 100 }).notNull(),
     bands: jsonb("bands").notNull(),
     isSystem: boolean("is_system").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("eq_presets_user_name_uq").on(t.userId, t.name)],
 );
@@ -205,12 +175,8 @@ export const userSettings = pgTable("user_settings", {
     onDelete: "set null",
   }),
   locale: varchar("locale", { length: 5 }).notNull().default("th"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const queueSnapshots = pgTable("queue_snapshots", {
@@ -221,12 +187,8 @@ export const queueSnapshots = pgTable("queue_snapshots", {
   positionMs: integer("position_ms").notNull().default(0),
   shuffleOn: boolean("shuffle_on").notNull().default(false),
   repeatMode: varchar("repeat_mode", { length: 5 }).notNull().default("off"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const queueItems = pgTable(
@@ -242,11 +204,7 @@ export const queueItems = pgTable(
       .references(() => tracks.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
     originalPosition: integer("original_position").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    uniqueIndex("queue_items_position_uq").on(t.userId, t.kind, t.position),
-  ],
+  (t) => [uniqueIndex("queue_items_position_uq").on(t.userId, t.kind, t.position)],
 );

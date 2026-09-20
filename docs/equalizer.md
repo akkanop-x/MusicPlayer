@@ -41,18 +41,18 @@
 
 ## 2. Bands (10 bands, ISO octave)
 
-| Band | Freq    | Filter type | Q     |
-|------|---------|-------------|-------|
-| 1    | 31.25 Hz| lowshelf    | 0.707 |
-| 2    | 62.5 Hz | peaking     | 1.0   |
-| 3    | 125 Hz  | peaking     | 1.0   |
-| 4    | 250 Hz  | peaking     | 1.0   |
-| 5    | 500 Hz  | peaking     | 1.0   |
-| 6    | 1 kHz   | peaking     | 1.0   |
-| 7    | 2 kHz   | peaking     | 1.0   |
-| 8    | 4 kHz   | peaking     | 1.0   |
-| 9    | 8 kHz   | peaking     | 1.0   |
-| 10   | 16 kHz  | highshelf   | 0.707 |
+| Band | Freq     | Filter type | Q     |
+| ---- | -------- | ----------- | ----- |
+| 1    | 31.25 Hz | lowshelf    | 0.707 |
+| 2    | 62.5 Hz  | peaking     | 1.0   |
+| 3    | 125 Hz   | peaking     | 1.0   |
+| 4    | 250 Hz   | peaking     | 1.0   |
+| 5    | 500 Hz   | peaking     | 1.0   |
+| 6    | 1 kHz    | peaking     | 1.0   |
+| 7    | 2 kHz    | peaking     | 1.0   |
+| 8    | 4 kHz    | peaking     | 1.0   |
+| 9    | 8 kHz    | peaking     | 1.0   |
+| 10   | 16 kHz   | highshelf   | 0.707 |
 
 - Shelf ที่ปลายสองข้างเพราะความถือสุดขอบไม่มี "ศูนย์กลาง bandwidth" ที่มีความหมาย; peaking กลางเส้นด้วย Q=1.0 (bandwidth ≈ 1 octave — สมเหตุผลสำหรับ 10-band ISO)
 - Gain: **−12 dB ถึง +12 dB** ต่อ band (step 0.5 dB ใน UI)
@@ -66,15 +66,15 @@
 
 ## 4. Presets
 
-| Preset    | Gain (dB) — bands 31.25→16k                                              |
-|-----------|---------------------------------------------------------------------------|
-| Flat      | [0,0,0,0,0,0,0,0,0,0]                                                      |
-| Pop       | [-1, 1, 3, 4, 3, 0, -1, -1, 1, 2]                                          |
-| Rock      | [4, 3, 1, 0, -1, 0, 1, 3, 4, 4]                                            |
-| Classical | [3, 2, 0, 0, 0, 0, 0, 2, 3, 4]                                             |
-| Jazz      | [2, 3, 1, 2, -1, -1, 0, 1, 3, 3]                                           |
-| Vocal     | [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1]                                          |
-| Bass Boost| [8, 6, 4, 2, 0, 0, 0, 0, 0, 0]                                             |
+| Preset     | Gain (dB) — bands 31.25→16k       |
+| ---------- | --------------------------------- |
+| Flat       | [0,0,0,0,0,0,0,0,0,0]             |
+| Pop        | [-1, 1, 3, 4, 3, 0, -1, -1, 1, 2] |
+| Rock       | [4, 3, 1, 0, -1, 0, 1, 3, 4, 4]   |
+| Classical  | [3, 2, 0, 0, 0, 0, 0, 2, 3, 4]    |
+| Jazz       | [2, 3, 1, 2, -1, -1, 0, 1, 3, 3]  |
+| Vocal      | [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1] |
+| Bass Boost | [8, 6, 4, 2, 0, 0, 0, 0, 0, 0]    |
 
 - System presets: seed ลง `eq_presets` (`user_id IS NULL`) — แก้ไม่ได้, ลบไม่ได้
 - Custom: user บันทึกชื่อ + bands[10] (validate: ความยาว 10, ค่า ∈ [−12, +12], freq/Q fix)
@@ -117,8 +117,8 @@
 
 ## 10. Risks
 
-| Risk                              | บรรเทา                                      |
-|-----------------------------------|----------------------------------------------|
-| Click/pop ตอนเปลี่ยนค่า            | setTargetAtTime ทุก path (รวมตอน preset เปลี่ยน) + unit test กัน `.value=` ตรง |
-| ลืม wire graph ใหม่หลัง rebuild   | Graph สร้างครั้งเดียวต่อ session — ไม่มี rebuild path ใน MVP |
-| EQ ไม่ถูกต้องบน browser เฉพาะ     | E2E cross-browser + snapshot response เทียบกันที่ test fixture |
+| Risk                            | บรรเทา                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| Click/pop ตอนเปลี่ยนค่า         | setTargetAtTime ทุก path (รวมตอน preset เปลี่ยน) + unit test กัน `.value=` ตรง |
+| ลืม wire graph ใหม่หลัง rebuild | Graph สร้างครั้งเดียวต่อ session — ไม่มี rebuild path ใน MVP                   |
+| EQ ไม่ถูกต้องบน browser เฉพาะ   | E2E cross-browser + snapshot response เทียบกันที่ test fixture                 |

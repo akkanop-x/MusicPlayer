@@ -21,87 +21,87 @@
 
 ### `PLAYER_STATE_CHANGED`
 
-| ฟิลด์   | ค่า                                                      |
-|---------|-----------------------------------------------------------|
-| Payload | `{ state, track?, positionMs, version }`                  |
-| Trigger | ทุก transition ของ player state machine (player.md)       |
-| Consumer| playerStore (frontend) — อัปเดต UI + AudioEngine ตาม state |
+| ฟิลด์    | ค่า                                                        |
+| -------- | ---------------------------------------------------------- |
+| Payload  | `{ state, track?, positionMs, version }`                   |
+| Trigger  | ทุก transition ของ player state machine (player.md)        |
+| Consumer | playerStore (frontend) — อัปเดต UI + AudioEngine ตาม state |
 
 ### `TRACK_STARTED`
 
-| ฟิลด์   | ค่า                                                        |
-|---------|-------------------------------------------------------------|
-| Payload | `{ item: QueueItemDTO, positionMs: 0, version }`            |
-| Trigger | เริ่มเล่นเพลงใหม่ (play, skip, previous, autoplay, repeat one) |
-| Consumer| AudioEngine โหลด `/stream/:trackId` + playerStore           |
+| ฟิลด์    | ค่า                                                            |
+| -------- | -------------------------------------------------------------- |
+| Payload  | `{ item: QueueItemDTO, positionMs: 0, version }`               |
+| Trigger  | เริ่มเล่นเพลงใหม่ (play, skip, previous, autoplay, repeat one) |
+| Consumer | AudioEngine โหลด `/stream/:trackId` + playerStore              |
 
 ### `TRACK_ENDED`
 
-| ฟิลด์   | ค่า                                                                 |
-|---------|----------------------------------------------------------------------|
-| Payload | `{ item: QueueItemDTO, reason: 'completed'|'skipped'|'error'|'replaced', version }` |
-| Trigger | เพลงจบตามธรรมชาติ (client รายงาน) / skip / error → เปลี่ยนเพลง        |
-| Consumer| playerStore (ทำความสะอาด UI), HistoryService (ภายใน backend ฟังเอง) |
+| ฟิลด์    | ค่า                                                                 |
+| -------- | ------------------------------------------------------------------- |
+| Payload  | `{ item: QueueItemDTO, reason: 'completed'                          | 'skipped' | 'error' | 'replaced', version }` |
+| Trigger  | เพลงจบตามธรรมชาติ (client รายงาน) / skip / error → เปลี่ยนเพลง      |
+| Consumer | playerStore (ทำความสะอาด UI), HistoryService (ภายใน backend ฟังเอง) |
 
 ### `TRACK_EXCEPTION`
 
-| ฟิลด์   | ค่า                                                         |
-|---------|--------------------------------------------------------------|
-| Payload | `{ item, code: 'UNPLAYABLE'|'SOURCE_ERROR'|'CODEC_UNSUPPORTED', message, version }` |
-| Trigger | StreamService ตรวจพบเพลงเล่นไม่ได้ หรือ client รายงาน STALLED จนหมด retry |
-| Consumer| UI toast "ข้ามเพลงนี้เพราะเล่นไม่ได้"; playerStore           |
+| ฟิลด์    | ค่า                                                                       |
+| -------- | ------------------------------------------------------------------------- |
+| Payload  | `{ item, code: 'UNPLAYABLE'                                               | 'SOURCE_ERROR' | 'CODEC_UNSUPPORTED', message, version }` |
+| Trigger  | StreamService ตรวจพบเพลงเล่นไม่ได้ หรือ client รายงาน STALLED จนหมด retry |
+| Consumer | UI toast "ข้ามเพลงนี้เพราะเล่นไม่ได้"; playerStore                        |
 
 ### `QUEUE_UPDATED`
 
-| ฟิลด์   | ค่า                                                            |
-|---------|-----------------------------------------------------------------|
-| Payload | `{ queue: QueueStateDTO }` (ทั้งก้อน — replace, ไม่ diff)       |
-| Trigger | ทุก mutation ของ queue (add/remove/move/clear/shuffle/skip/autoplay/radio) |
-| Consumer| queueStore — replace state; ใช้ `version` ใน payload เป็นเกณฑ์   |
+| ฟิลด์    | ค่า                                                                        |
+| -------- | -------------------------------------------------------------------------- |
+| Payload  | `{ queue: QueueStateDTO }` (ทั้งก้อน — replace, ไม่ diff)                  |
+| Trigger  | ทุก mutation ของ queue (add/remove/move/clear/shuffle/skip/autoplay/radio) |
+| Consumer | queueStore — replace state; ใช้ `version` ใน payload เป็นเกณฑ์             |
 
 ### `QUEUE_ENDED`
 
-| ฟิลด์   | ค่า                                                              |
-|---------|-------------------------------------------------------------------|
-| Payload | `{ version }`                                                       |
-| Trigger | เพลงสุดท้ายจบ + repeat=off + autoplay ปิด (หรือ recommendation หมด) |
-| Consumer| UI แสดง "จบคิวแล้ว", player → IDLE                                 |
+| ฟิลด์    | ค่า                                                                 |
+| -------- | ------------------------------------------------------------------- |
+| Payload  | `{ version }`                                                       |
+| Trigger  | เพลงสุดท้ายจบ + repeat=off + autoplay ปิด (หรือ recommendation หมด) |
+| Consumer | UI แสดง "จบคิวแล้ว", player → IDLE                                  |
 
 ### `POSITION_UPDATED`
 
-| ฟิลด์   | ค่า                                             |
-|---------|--------------------------------------------------|
-| Payload | `{ positionMs, version }`                        |
-| Trigger | backend ปรับ position เพราะเหตุการณ์ฝั่ง server (seek, restore หลัง reconnect) — **ไม่**ใช่ broadcast ต่อเนื่อง |
-| Consumer| playerStore — เฉพาะเมื่อต่างจาก local เกิน 500 ms |
+| ฟิลด์    | ค่า                                                                                                             |
+| -------- | --------------------------------------------------------------------------------------------------------------- |
+| Payload  | `{ positionMs, version }`                                                                                       |
+| Trigger  | backend ปรับ position เพราะเหตุการณ์ฝั่ง server (seek, restore หลัง reconnect) — **ไม่**ใช่ broadcast ต่อเนื่อง |
+| Consumer | playerStore — เฉพาะเมื่อต่างจาก local เกิน 500 ms                                                               |
 
 > ระบบไม่ push position ทุกวินาที — client นับเองจาก AudioEngine (เสียงอยู่ที่ client จึงแม่นกว่า) และส่ง `POSITION_SYNC` กลับมาแทน
 
 ### `VOLUME_CHANGED`
 
-| ฟิลด์   | ค่า                                        |
-|---------|---------------------------------------------|
-| Payload | `{ volume, muted, version }`                |
-| Trigger | PATCH /player/volume (จากอีก tab/อุปกรณ์)   |
-| Consumer| AudioEngine.setVolume + UI slider           |
+| ฟิลด์    | ค่า                                       |
+| -------- | ----------------------------------------- |
+| Payload  | `{ volume, muted, version }`              |
+| Trigger  | PATCH /player/volume (จากอีก tab/อุปกรณ์) |
+| Consumer | AudioEngine.setVolume + UI slider         |
 
 ### `EQ_CHANGED`
 
-| ฟิลด์   | ค่า                                                     |
-|---------|----------------------------------------------------------|
-| Payload | `{ presetId | null, bands: number[] | null, version }`    |
-| Trigger | PUT /eq/active, PATCH /eq/presets ที่เป็น active           |
-| Consumer| eqGraph — apply bands แบบ smooth (equalizer.md)           |
+| ฟิลด์    | ค่า                                              |
+| -------- | ------------------------------------------------ |
+| Payload  | `{ presetId                                      | null, bands: number[] | null, version }` |
+| Trigger  | PUT /eq/active, PATCH /eq/presets ที่เป็น active |
+| Consumer | eqGraph — apply bands แบบ smooth (equalizer.md)  |
 
 ### `LIKES_CHANGED`
 
-| ฟิลด์   | ค่า                                                  |
-|---------|-------------------------------------------------------|
-| Payload | `{ trackId, liked: boolean }`                         |
-| Trigger | PUT/DELETE like จากอุกอุปกรณ์อื่น                      |
-| Consumer| TrackRow hearts, likes query cache invalidate         |
+| ฟิลด์    | ค่า                                           |
+| -------- | --------------------------------------------- |
+| Payload  | `{ trackId, liked: boolean }`                 |
+| Trigger  | PUT/DELETE like จากอุกอุปกรณ์อื่น             |
+| Consumer | TrackRow hearts, likes query cache invalidate |
 
-### `RADIO_EXTENDED` *(รวมใน QUEUE_UPDATED ก็ได้ — ตัดสินใจ: ใช้ QUEUE_UPDATED เพื่อลดจำนวน event type)*
+### `RADIO_EXTENDED` _(รวมใน QUEUE_UPDATED ก็ได้ — ตัดสินใจ: ใช้ QUEUE_UPDATED เพื่อลดจำนวน event type)_
 
 > ตัดทิ้ง — radio extend สื่อสารผ่าน `QUEUE_UPDATED` เพียงพอ
 
@@ -109,33 +109,33 @@
 
 ### `POSITION_SYNC`
 
-| ฟิลด์       | ค่า/กติกา                                                                 |
-|-------------|---------------------------------------------------------------------------|
-| Payload     | `{ positionMs }` (client ส่งทุก 5 s ขณะเล่น + ตอน pause/seek/ended)        |
-| Validation  | server ตรวจ: ต้องเดินหน้าไม่เร็วกว่า real-time × 1.2, ≤ duration — ผิด → ปฏิเสธ + `SYNC_REQUEST` กลับ |
-| ใช้ทำอะไร   | update authoritative position + snapshot; ประกอบเกณฑ์ history (ms_played)  |
+| ฟิลด์      | ค่า/กติกา                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| Payload    | `{ positionMs }` (client ส่งทุก 5 s ขณะเล่น + ตอน pause/seek/ended)                                   |
+| Validation | server ตรวจ: ต้องเดินหน้าไม่เร็วกว่า real-time × 1.2, ≤ duration — ผิด → ปฏิเสธ + `SYNC_REQUEST` กลับ |
+| ใช้ทำอะไร  | update authoritative position + snapshot; ประกอบเกณฑ์ history (ms_played)                             |
 
 ### `TRACK_ENDED` (client report)
 
-| ฟิลด์   | ค่า/กติกา                                              |
-|---------|---------------------------------------------------------|
-| Payload | `{ trackId, msPlayed }` — ack ต้องได้รับภายใน 5 s        |
-| ใช้ทำอะไร | trigger QueueService.advance + history + autoplay      |
+| ฟิลด์     | ค่า/กติกา                                         |
+| --------- | ------------------------------------------------- |
+| Payload   | `{ trackId, msPlayed }` — ack ต้องได้รับภายใน 5 s |
+| ใช้ทำอะไร | trigger QueueService.advance + history + autoplay |
 
 ### `TRACK_STALLED`
 
-| ฟิลด์   | ค่า/กติกา                                              |
-|---------|---------------------------------------------------------|
-| Payload | `{ trackId, positionMs, attempt }`                       |
+| ฟิลด์     | ค่า/กติกา                                                                         |
+| --------- | --------------------------------------------------------------------------------- |
+| Payload   | `{ trackId, positionMs, attempt }`                                                |
 | ใช้ทำอะไร | server นับ; ถ้าเกิน threshold (เช่น 3 reports / 30 s) → TRACK_EXCEPTION + advance |
 
 ### `SYNC_REQUEST`
 
-| ฟิลด์   | ค่า/กติกา                                       |
-|---------|--------------------------------------------------|
-| Payload | `{ clientVersion? }`                              |
-| Response| server ตอบกลับด้วย `PLAYER_STATE_CHANGED` + `QUEUE_UPDATED` ล่าสุด (ถ้า clientVersion ต่ำกว่า) |
-| ใช้ทำอะไร | หลัง reconnect/refresh — resync ทั้งหมดในครั้งเดียว |
+| ฟิลด์     | ค่า/กติกา                                                                                      |
+| --------- | ---------------------------------------------------------------------------------------------- |
+| Payload   | `{ clientVersion? }`                                                                           |
+| Response  | server ตอบกลับด้วย `PLAYER_STATE_CHANGED` + `QUEUE_UPDATED` ล่าสุด (ถ้า clientVersion ต่ำกว่า) |
+| ใช้ทำอะไร | หลัง reconnect/refresh — resync ทั้งหมดในครั้งเดียว                                            |
 
 ## 5. Retry / Reconnection Strategy (client side)
 

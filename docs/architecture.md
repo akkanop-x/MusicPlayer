@@ -52,36 +52,36 @@
 
 ### Browser
 
-| Component        | ความรับผิดชอบ                                                                   |
-|------------------|---------------------------------------------------------------------------------|
-| React UI         | หน้าจอ, การ interact, แสดงผล state                                             |
-| Zustand stores   | Client-side state: player (mirror), queue (mirror), search cache, UI state       |
-| TanStack Query   | Server state: search results, playlists, likes, history (fetch/cache/invalidate) |
+| Component        | ความรับผิดชอบ                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| React UI         | หน้าจอ, การ interact, แสดงผล state                                                       |
+| Zustand stores   | Client-side state: player (mirror), queue (mirror), search cache, UI state               |
+| TanStack Query   | Server state: search results, playlists, likes, history (fetch/cache/invalidate)         |
 | AudioEngine      | **ตัวเล่นเสียงจริงเพียงที่เดียว** — โหลด stream, เล่น, รายงาน position/stall/end, ใส่ EQ |
-| Socket.IO client | รับ push events, ขอ resync, ส่ง playback progress                              |
+| Socket.IO client | รับ push events, ขอ resync, ส่ง playback progress                                        |
 
 ### Backend
 
-| Service               | ความรับผิดชอบ (รายละเอียดใน backend.md)                                        |
-|-----------------------|--------------------------------------------------------------------------------|
-| AuthService           | สมัคร/ล็อกอิน, refresh token rotation, session                                 |
-| SearchService         | รับคำค้น → เรียก Lavalink `/v4/loadtracks` → normalize → cache/upsert `tracks` |
-| StreamService         | แปลง trackId → playable stream URL (resolver) + proxy เสียงพร้อม Range + SSRF guard |
+| Service               | ความรับผิดชอบ (รายละเอียดใน backend.md)                                               |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| AuthService           | สมัคร/ล็อกอิน, refresh token rotation, session                                        |
+| SearchService         | รับคำค้น → เรียก Lavalink `/v4/loadtracks` → normalize → cache/upsert `tracks`        |
+| StreamService         | แปลง trackId → playable stream URL (resolver) + proxy เสียงพร้อม Range + SSRF guard   |
 | PlayerService         | **ผู้มีอำนาจสูงสุดเรื่อง playback intent** (state machine, volume, position tracking) |
-| QueueService          | Queue + playback history + shuffle/repeat logic                                 |
-| PlaylistService       | CRUD playlist + ลำดับเพลง                                                       |
-| HistoryService        | บันทึก/สอบถาม listening history                                                 |
-| RecommendationService | Rule-based candidate/scoring, ให้ทั้ง home feed และ radio/autoplay              |
+| QueueService          | Queue + playback history + shuffle/repeat logic                                       |
+| PlaylistService       | CRUD playlist + ลำดับเพลง                                                             |
+| HistoryService        | บันทึก/สอบถาม listening history                                                       |
+| RecommendationService | Rule-based candidate/scoring, ให้ทั้ง home feed และ radio/autoplay                    |
 
 ### External
 
-| Component | บทบาท                                                                              |
-|-----------|-------------------------------------------------------------------------------------|
-| Lavalink v4 | **ใช้แค่ track resolution/search** — ไม่ใช่ตัวส่งเสียง (เหตุผล: ADR-003); มี **LavaSrc plugin** สำหรับ Spotify metadata (`spsearch`) |
-| Spotify Web API | **Metadata เท่านั้น** — ค้นหา, playlist import, **genre enrichment** (artist genres); ไม่มีเสียง (grilling 2026-09-20) |
-| Resolver service | แยก container (yt-dlp based): trackId → stream URL อายุสั้นของ YouTube ([ADR-008](./adr/008-youtube-first-no-local-storage.md)) |
-| PostgreSQL | Source of truth ของ users, tracks, playlists, history, settings, queue snapshot    |
-| Redis      | Optional: search cache, rate-limit counters, pub/sub สำหรับ multi-instance (phase 13) |
+| Component        | บทบาท                                                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Lavalink v4      | **ใช้แค่ track resolution/search** — ไม่ใช่ตัวส่งเสียง (เหตุผล: ADR-003); มี **LavaSrc plugin** สำหรับ Spotify metadata (`spsearch`) |
+| Spotify Web API  | **Metadata เท่านั้น** — ค้นหา, playlist import, **genre enrichment** (artist genres); ไม่มีเสียง (grilling 2026-09-20)               |
+| Resolver service | แยก container (yt-dlp based): trackId → stream URL อายุสั้นของ YouTube ([ADR-008](./adr/008-youtube-first-no-local-storage.md))      |
+| PostgreSQL       | Source of truth ของ users, tracks, playlists, history, settings, queue snapshot                                                      |
+| Redis            | Optional: search cache, rate-limit counters, pub/sub สำหรับ multi-instance (phase 13)                                                |
 
 ## 3. Data Flow หลัก
 
@@ -129,33 +129,35 @@ Browser ── REST/WSS ──► Backend ──► PostgreSQL (hard dependency)
 
 ## 4. Communication Matrix
 
-| ช่องทาง            | จาก → ไป        | ใช้เมื่อ                                  |
-|--------------------|------------------|--------------------------------------------|
-| REST (HTTPS)       | Browser → Backend| ทุกคำสั่งที่ต้องการ response (search, queue ops, play/pause, CRUD) |
-| WebSocket (Socket.IO) | Backend → Browser | Push state: TRACK_STARTED, QUEUE_UPDATED, EQ_CHANGED ฯลฯ |
-| WebSocket          | Browser → Backend | Playback progress, stall/end events, SYNC_REQUEST |
-| REST               | Backend → Lavalink| `/v4/loadtracks`, `/v4/decodetrack` (server-to-server, ไม่ผ่าน browser เด็ดขาด) |
-| HTTP (Range)       | Backend → Source → Browser | Audio bytes ผ่าน StreamService proxy |
+| ช่องทาง               | จาก → ไป                   | ใช้เมื่อ                                                                        |
+| --------------------- | -------------------------- | ------------------------------------------------------------------------------- |
+| REST (HTTPS)          | Browser → Backend          | ทุกคำสั่งที่ต้องการ response (search, queue ops, play/pause, CRUD)              |
+| WebSocket (Socket.IO) | Backend → Browser          | Push state: TRACK_STARTED, QUEUE_UPDATED, EQ_CHANGED ฯลฯ                        |
+| WebSocket             | Browser → Backend          | Playback progress, stall/end events, SYNC_REQUEST                               |
+| REST                  | Backend → Lavalink         | `/v4/loadtracks`, `/v4/decodetrack` (server-to-server, ไม่ผ่าน browser เด็ดขาด) |
+| HTTP (Range)          | Backend → Source → Browser | Audio bytes ผ่าน StreamService proxy                                            |
 
 ## 5. Failure Points & Degrade Strategy
 
-| Failure                     | อาการ                              | วิธีรับมือ                                                              |
-|-----------------------------|-------------------------------------|--------------------------------------------------------------------------|
-| Lavalink ล่ม                | Search จาก remote source ใช้ไม่ได้ | ตอบ 503 ที่ endpoint search พร้อม source ที่ใช้ได้ (local library); playback ไม่กระทบ |
-| Source host ล่ม (ต่อเพลง)   | เพลงนั้นโหลดไม่ได้                 | PlayerService รับ TRACK_STALLED → ข้ามไปเพลงถัดไป + แจ้ง QUEUE_UPDATED / toast ใน UI |
-| **YouTube extraction พัง**   | **ทั้งแอปไม่มีเพลงเล่น** (single-source — ADR-008) | Resolver แยก container อัปเดตง่าย + หน้า source status + local ingest fallback (Phase 14) |
-| PostgreSQL ล่ม              | ทุกอย่างที่ต้อง auth/data          | 503 ทั้งระบบ + WS แจ้ง MAINTENANCE; queue ใน memory ทิ้งได้ (แต่ต้องบอกผู้ใช้) |
-| WS ขาดระหว่างเล่น           | UI ไม่ sync                        | เสียงเล่นต่อ (client ยังมี stream), reconnect + SYNC_REQUEST แบบ exponential backoff |
-| Stream proxy ช้า            | Buffering บ่อย                     | Range request + prebuffer 10–30 s; ถ้ายังช้า → ลด quality/แจ้งผู้ใช้ |
-| Backend ล่มทั้งตัว           | เสียงหยุด                          | ไม่มี fallback ใน MVP — SPOF ยอมรับได้ (ดู Scaling)                      |
+| Failure                    | อาการ                                              | วิธีรับมือ                                                                                |
+| -------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Lavalink ล่ม               | Search จาก remote source ใช้ไม่ได้                 | ตอบ 503 ที่ endpoint search พร้อม source ที่ใช้ได้ (local library); playback ไม่กระทบ     |
+| Source host ล่ม (ต่อเพลง)  | เพลงนั้นโหลดไม่ได้                                 | PlayerService รับ TRACK_STALLED → ข้ามไปเพลงถัดไป + แจ้ง QUEUE_UPDATED / toast ใน UI      |
+| **YouTube extraction พัง** | **ทั้งแอปไม่มีเพลงเล่น** (single-source — ADR-008) | Resolver แยก container อัปเดตง่าย + หน้า source status + local ingest fallback (Phase 14) |
+| PostgreSQL ล่ม             | ทุกอย่างที่ต้อง auth/data                          | 503 ทั้งระบบ + WS แจ้ง MAINTENANCE; queue ใน memory ทิ้งได้ (แต่ต้องบอกผู้ใช้)            |
+| WS ขาดระหว่างเล่น          | UI ไม่ sync                                        | เสียงเล่นต่อ (client ยังมี stream), reconnect + SYNC_REQUEST แบบ exponential backoff      |
+| Stream proxy ช้า           | Buffering บ่อย                                     | Range request + prebuffer 10–30 s; ถ้ายังช้า → ลด quality/แจ้งผู้ใช้                      |
+| Backend ล่มทั้งตัว         | เสียงหยุด                                          | ไม่มี fallback ใน MVP — SPOF ยอมรับได้ (ดู Scaling)                                       |
 
 ## 6. Scaling Considerations
 
 **MVP (single instance):**
+
 - Backend 1 instance (Node.js), Lavalink 1 container, PostgreSQL 1 instance, ไม่มี Redis
 - Queue/Player state อยู่ใน memory ของ backend + snapshot ลง DB ทุกครั้งที่เปลี่ยน
 
 **เมื่อโตขึ้น (phase 13+):**
+
 - Backend stateless ได้เมื่อย้าย player/queue state ไป Redis → scale แนวนอน + Socket.IO Redis adapter สำหรับ broadcast ข้าม instance
 - ต้องมี sticky session หรือ room-per-user เพื่อให้ WS ไปถึง instance ที่ถือ state
 - Stream proxy เป็นคนกิน bandwidth มากสุด (×2 จากการ proxy YouTube — ADR-008) — แยกเป็น service ของตัวเอง หรือใส่ per-track RAM cache ก่อนแยก API
@@ -174,8 +176,8 @@ Browser ── REST/WSS ──► Backend ──► PostgreSQL (hard dependency)
 
 ## 9. Risks
 
-| Risk                                 | ผลกระทบ | บรรเทา                                                                     |
-|--------------------------------------|-----------|------------------------------------------------------------------------------|
+| Risk                                                      | ผลกระทบ                       | บรรเทา                                                                                |
+| --------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------- |
 | ผู้ใช้ (หรือ client ที่ถูกแก้ไข) ส่ง playback events ปลอม | History/recommendation เพี้ยน | Rate-limit + sanity check (position ไม่วิ่งเร็วกว่าเวลาจริง, durationPlayed ≤ length) |
-| Stream proxy กลายเป็น open relay (SSRF) | ความปลอดภัยระดับวิกฤต | Allowlist โดเมน + บล็อก private IP + ไม่รับ URL จาก client โดยตรง (ดู security.md) |
-| YouTube ToS หากเปิด extraction      | กฎหมาย/บล็อก IP | แยกเป็น phase B + ตั้ง flag ปิดได้ (ADR-003)                                |
+| Stream proxy กลายเป็น open relay (SSRF)                   | ความปลอดภัยระดับวิกฤต         | Allowlist โดเมน + บล็อก private IP + ไม่รับ URL จาก client โดยตรง (ดู security.md)    |
+| YouTube ToS หากเปิด extraction                            | กฎหมาย/บล็อก IP               | แยกเป็น phase B + ตั้ง flag ปิดได้ (ADR-003)                                          |

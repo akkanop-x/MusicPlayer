@@ -48,15 +48,15 @@ Backend (Node.js + Fastify + TypeScript)
 
 ## 4. Tech Stack (สรุป — รายละเอียดและเหตุผลอยู่ใน ADR)
 
-| Layer     | Technology                                             | ADR                              |
-|-----------|--------------------------------------------------------|-----------------------------------|
-| Language  | TypeScript (monorepo: `apps/web`, `apps/server`)      | [ADR-001](./adr/001-use-typescript.md) |
-| Frontend  | React + Vite + Tailwind CSS + Zustand + TanStack Query | [ADR-005](./adr/005-state-management.md) |
-| Backend   | Node.js + Fastify + Socket.IO                          | [ADR-004](./adr/004-websocket.md) |
-| Audio     | Lavalink v4 (metadata: YouTube+Spotify) + Resolver (yt-dlp, เสียงจาก YouTube) + Web Audio API | [ADR-003](./adr/003-audio-pipeline.md), [ADR-008](./adr/008-youtube-first-no-local-storage.md) |
-| Database  | PostgreSQL + Drizzle ORM                               | [ADR-002](./adr/002-use-postgresql.md) |
-| Auth      | Session: refresh token rotation (httpOnly cookie)      | [ADR-006](./adr/006-authentication.md) |
-| Infra     | Docker / Docker Compose (dev), Redis (optional)        | —                                 |
+| Layer    | Technology                                                                                    | ADR                                                                                            |
+| -------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Language | TypeScript (monorepo: `apps/web`, `apps/server`)                                              | [ADR-001](./adr/001-use-typescript.md)                                                         |
+| Frontend | React + Vite + Tailwind CSS + Zustand + TanStack Query                                        | [ADR-005](./adr/005-state-management.md)                                                       |
+| Backend  | Node.js + Fastify + Socket.IO                                                                 | [ADR-004](./adr/004-websocket.md)                                                              |
+| Audio    | Lavalink v4 (metadata: YouTube+Spotify) + Resolver (yt-dlp, เสียงจาก YouTube) + Web Audio API | [ADR-003](./adr/003-audio-pipeline.md), [ADR-008](./adr/008-youtube-first-no-local-storage.md) |
+| Database | PostgreSQL + Drizzle ORM                                                                      | [ADR-002](./adr/002-use-postgresql.md)                                                         |
+| Auth     | Session: refresh token rotation (httpOnly cookie)                                             | [ADR-006](./adr/006-authentication.md)                                                         |
+| Infra    | Docker / Docker Compose (dev), Redis (optional)                                               | —                                                                                              |
 
 ## 5. Documentation Index
 
@@ -84,22 +84,22 @@ Documentation
 
 ## 6. Development Phases (สรุปย่อ)
 
-| Phase | ชื่อ                | ผลลัพธ์หลัก                                  |
-|-------|---------------------|----------------------------------------------|
-| 0     | Documentation       | เอกสารชุดนี้ (✅ คือผลงานของ phase นี้)       |
-| 1     | Project Setup       | Monorepo + Docker Compose รันได้             |
-| 2     | Lavalink Integration| Backend คุยกับ Lavalink /loadtracks ได้      |
-| 3     | Audio Pipeline      | Stream + เล่นผ่าน browser ได้                |
-| 4     | Player              | State machine + controls ครบ                 |
-| 5     | Queue               | Add/remove/shuffle/repeat                    |
-| 6     | Search              | ค้นหา + บันทึก track metadata                |
-| 7     | WebSocket           | Sync state แบบ realtime                      |
-| 8     | EQ                  | 10-band equalizer + presets                  |
-| 9     | Frontend            | UI ครบตาม requirements                       |
-| 10    | Library             | Playlist / Like / History                    |
-| 11    | Autoplay            | ต่อ queue อัตโนมัติ                          |
-| 12    | Recommendation/Radio| Rule-based engine                            |
-| 13    | Testing/Production  | CI + hardening + deploy                      |
+| Phase | ชื่อ                 | ผลลัพธ์หลัก                             |
+| ----- | -------------------- | --------------------------------------- |
+| 0     | Documentation        | เอกสารชุดนี้ (✅ คือผลงานของ phase นี้) |
+| 1     | Project Setup        | Monorepo + Docker Compose รันได้        |
+| 2     | Lavalink Integration | Backend คุยกับ Lavalink /loadtracks ได้ |
+| 3     | Audio Pipeline       | Stream + เล่นผ่าน browser ได้           |
+| 4     | Player               | State machine + controls ครบ            |
+| 5     | Queue                | Add/remove/shuffle/repeat               |
+| 6     | Search               | ค้นหา + บันทึก track metadata           |
+| 7     | WebSocket            | Sync state แบบ realtime                 |
+| 8     | EQ                   | 10-band equalizer + presets             |
+| 9     | Frontend             | UI ครบตาม requirements                  |
+| 10    | Library              | Playlist / Like / History               |
+| 11    | Autoplay             | ต่อ queue อัตโนมัติ                     |
+| 12    | Recommendation/Radio | Rule-based engine                       |
+| 13    | Testing/Production   | CI + hardening + deploy                 |
 
 รายละเอียดเต็ม: [roadmap.md](./roadmap.md)
 

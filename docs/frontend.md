@@ -65,13 +65,13 @@ apps/web/src/
 
 ### 3.2 Player Store (Zustand)
 
-| ชื่อ state        | ที่มา                          | หมายเหตุ                                  |
-|-------------------|---------------------------------|--------------------------------------------|
-| `playbackState`   | WS `PLAYER_STATE_CHANGED`       | idle/loading/playing/paused/buffering/ended|
-| `currentTrack`    | WS `TRACK_STARTED` / REST       | TrackDTO + trackId                         |
-| `positionMs`      | AudioEngine PROGRESS (local) + WS POSITION_SYNC (แก้ drift) | local อัปเดตถี่, server sync ทุก 5 s |
-| `volume`, `muted` | user action → REST + WS         |                                           |
-| `repeatMode`, `shuffle` | REST + WS QUEUE_UPDATED   | mirror ของ backend state                   |
+| ชื่อ state              | ที่มา                                                       | หมายเหตุ                                    |
+| ----------------------- | ----------------------------------------------------------- | ------------------------------------------- |
+| `playbackState`         | WS `PLAYER_STATE_CHANGED`                                   | idle/loading/playing/paused/buffering/ended |
+| `currentTrack`          | WS `TRACK_STARTED` / REST                                   | TrackDTO + trackId                          |
+| `positionMs`            | AudioEngine PROGRESS (local) + WS POSITION_SYNC (แก้ drift) | local อัปเดตถี่, server sync ทุก 5 s        |
+| `volume`, `muted`       | user action → REST + WS                                     |                                             |
+| `repeatMode`, `shuffle` | REST + WS QUEUE_UPDATED                                     | mirror ของ backend state                    |
 
 หลักการ: **store เป็น mirror ของ backend** ยกเว้น `positionMs` ที่ client เป็นเวลาจริง (เสียงอยู่ที่ client) — ทุก WS event เป็น "คำสั่งให้ mirror ตาม" ไม่ใช่แหล่งความจริง
 
@@ -144,8 +144,8 @@ sequenceDiagram
 
 ## 9. Risks
 
-| Risk                                    | บรรเทา                                            |
-|-----------------------------------------|----------------------------------------------------|
+| Risk                                                                     | บรรเทา                                                                      |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | MediaElementSource ผูก element ครั้งเดียว — refactor พลาดทำให้เสียงเงียบ | มี unit test สำหรับ AudioEngine graph + เขียนกฎไว้ในโค้ดเป็น comment บังคับ |
-| WS events มาถี่เกินจน UI ค้าง            | Throttle POSITION_SYNC ที่ client, selector แบบ fine-grained |
-| Optimistic updates ขัดแย้งกับ WS push เก่า | ใช้ version/seq number ใน payload (ดู websocket.md) |
+| WS events มาถี่เกินจน UI ค้าง                                            | Throttle POSITION_SYNC ที่ client, selector แบบ fine-grained                |
+| Optimistic updates ขัดแย้งกับ WS push เก่า                               | ใช้ version/seq number ใน payload (ดู websocket.md)                         |

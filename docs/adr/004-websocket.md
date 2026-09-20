@@ -21,12 +21,14 @@
 ## Consequences
 
 **บวก:**
+
 - Reconnect/resync flow ครบใน library (เราออกแบบ `SYNC_REQUEST` บนสิ่งที่มี)
 - Rooms (`user:{userId}`) ตอบโจทย์ multi-tab + ต่อยอด party mode ได้
 - Ack + timeout ทำ "คำสั่งผ่าน WS, fallback REST" ได้สะอาด
 - เอกสาร/ชุมชนใหญ่, มี Redis adapter สำหรับ multi-instance (phase 13)
 
 **ลบ:**
+
 - ผูกกับ client library ของ Socket.IO (ไม่ใช่ WS ธรรมดา) — ยอมรับได้เพราะเราคุมทั้งสองฝั่ง
 - Engine.io framing overhead เล็กน้อย (ไม่มีผลเชิงประจักษ์เพราะ audio ไม่ผ่าน WS)
 - Long-polling fallback ต้องปิดใน production config (มี WSS แล้วไม่จำเป็น)
