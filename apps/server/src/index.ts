@@ -11,7 +11,7 @@ async function main(): Promise<void> {
   const db = createDb(env.DATABASE_URL);
   await migrate(db, { migrationsFolder });
 
-  const app = buildApp(env);
+  const app = buildApp(env, { db });
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
 }
 

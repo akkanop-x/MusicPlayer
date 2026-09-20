@@ -22,11 +22,14 @@ services:
       retries: 10
 
   lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:4
+    image: ghcr.io/lavalink-devs/lavalink:4.2.2
     volumes:
       - ./services/lavalink/application.yml:/opt/Lavalink/application.yml:ro
     environment:
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      # LavaSrc (spsearch) — ว่างได้ แต่ spsearch จะใช้ไม่ได้จนกว่าจะตั้งค่าจริงใน .env
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
     ports:
       - "2333:2333"
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 
+const testEnv = { LAVALINK_URL: "http://unused", LAVALINK_PASSWORD: "x" };
+
 describe("GET /health", () => {
   it("responds 200 with { ok: true }", async () => {
-    const app = buildApp({});
+    const app = buildApp(testEnv);
     const res = await app.inject({ method: "GET", url: "/health" });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
@@ -11,7 +13,7 @@ describe("GET /health", () => {
   });
 
   it("returns the canonical error shape for unknown routes", async () => {
-    const app = buildApp({});
+    const app = buildApp(testEnv);
     const res = await app.inject({ method: "GET", url: "/nope" });
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({

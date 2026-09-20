@@ -1,16 +1,72 @@
-# Lavalink v4 — config แบบ minimal เพื่อให้ container ลุกใน Phase 1
-# ⚠️ การ verify config กับตัวอย่างของเวอร์ชันที่ pin + ติดตั้ง youtube-source และ LavaSrc
-#    เป็นงานของ Phase 2 (docs/lavalink.md §2.2, ADR-008)
+# Lavalink v4.2.2 — verified กับ application.yml.example ของ tag 4.2.2 (docs/lavalink.md §2.2 บังคับ)
+# บทบาทของ Lavalink ในโปรเจกต์นี้: search/metadata เท่านั้น (lavalink.md §1, ADR-008)
+# ค่า secret ทั้งหมดมาจาก env — ห้าม hardcode
 server:
   port: 2333
   address: 0.0.0.0
 
 lavalink:
+  plugins:
+    # YouTube ถูกถอดออกจาก core แล้ว — source หลัก MVP ตาม ADR-008
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
+      repository: "https://maven.lavalink.dev/releases"
+      snapshot: false
+    # Spotify metadata (spsearch) — เสียงจริง fallback ไป YouTube เสมอ
+    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
+      repository: "https://maven.lavalink.dev/releases"
+      snapshot: false
+
   server:
     password: "${LAVALINK_PASSWORD}"
-  plugins: []
+    sources:
+      # built-in youtube deprecated — ใช้ youtube-source plugin ด้านบนแทน
+      youtube: false
+      bandcamp: true
+      soundcloud: true # ยังไม่ search หลัง MVP (lavalink.md §5) แต่เปิด source ไว้ไม่มีผล
+      twitch: false
+      vimeo: false
+      nico: false
+      http: true
+      local: false # เราไม่ใช้ local บน Lavalink host (zero storage — ADR-008)
+    youtubeSearchEnabled: true
+    soundcloudSearchEnabled: true
+
+# plugin config อยู่ที่ ROOT `plugins:` — YES plugins IS AT ROOT (README ของ LavaSrc/plugins ทุกตัว)
+plugins:
+  youtube:
+    enabled: true
+    allowSearch: true
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    clients:
+      - MUSIC
+      - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
+  lavasrc:
+    providers:
+      # mirror ไป YouTube เสมอ — Spotify ไม่มีเสียง (ADR-008 Amendment ข้อ 2)
+      - 'ytsearch:"%ISRC%"'
+      - "ytsearch:%QUERY%"
+    sources:
+      spotify: true
+    lyrics-sources:
+      spotify: false
+    spotify:
+      # ว่างได้ — container ลุกปกติ, แต่ spsearch จะได้ loadType=error จนกว่าจะตั้งค่าจริง
+      clientId: "${SPOTIFY_CLIENT_ID:}"
+      clientSecret: "${SPOTIFY_CLIENT_SECRET:}"
+      countryCode: "TH"
+      playlistLoadLimit: 6
+      albumLoadLimit: 6
+      resolveArtistsInSearch: false
 
 logging:
+  file:
+    path: ./logs/
+  level:
+    root: INFO
+    lavalink: INFO
   logback:
     rollingpolicy:
       max-file-size: 25MB
