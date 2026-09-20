@@ -1,6 +1,20 @@
 import { tracks } from "../db/schema.js";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
+import type { TrackDTO } from "@musicplayer/shared";
 import type { Db } from "../db/client.js";
+
+/** field ชุดเดียวกับ TrackDTO (isLiked เติมตอน Phase 10) — ใช้ร่วมกันหลาย query */
+const dtoColumns = {
+  id: tracks.id,
+  title: tracks.title,
+  artist: tracks.artist,
+  album: tracks.album,
+  durationMs: tracks.durationMs,
+  isStream: tracks.isStream,
+  isSeekable: tracks.isSeekable,
+  artworkUrl: tracks.artworkUrl,
+  sourceName: tracks.sourceName,
+};
 
 /** ข้อมูล metadata ที่เก็บได้จาก Lavalink Track (lavalink.md §6.1 "เราเก็บอะไร") */
 export interface TrackUpsert {
@@ -101,6 +115,44 @@ export async function updateStreamMeta(
       resolvedAt: new Date(),
     })
     .where(eq(tracks.id, id));
+}
+
+/**
+ * ค้นใน library ที่เคย resolve — pg_trgm (GIN index มีอยู่แล้วใน migration 0000)
+ * fuzzy ที่ similarity > 0.3 + substring ILIKE สำหรับคำสั้น ๆ เรียงจากคล้ายสุด
+ */
+export async function searchTracks(
+  db: Db,
+  q: string,
+  limit: number,
+): Promise<TrackDTO[]> {
+  const pattern = `%${q.replace(/([%_\\])/g, "\\$1")}%`;
+  const rows = await db
+    .select(dtoColumns)
+    .from(tracks)
+    .where(
+      sql`(${tracks.title} ILIKE ${pattern} OR ${tracks.artist} ILIKE ${pattern} OR similarity(${tracks.title}, ${q}) > 0.3 OR similarity(${tracks.artist}, ${q}) > 0.3)`,
+    )
+    .orderBy(
+      desc(
+        sql`GREATEST(similarity(${tracks.title}, ${q}), similarity(${tracks.artist}, ${q}))`,
+      ),
+    )
+    .limit(limit);
+  return rows.map((row) => ({ ...row, isLiked: false }));
+}
+
+/** batch fetch (api.md §3 endpoint 8) — คืนตามลำดับ ids ที่ส่งมา, id ที่ไม่มีตัดทิ้ง */
+export async function findTrackDTOs(db: Db, ids: string[]): Promise<TrackDTO[]> {
+  if (ids.length === 0) return [];
+  const rows = await db.select(dtoColumns).from(tracks).where(inArray(tracks.id, ids));
+  const byId = new Map(
+    rows.map((row) => [row.id, { ...row, isLiked: false } as TrackDTO]),
+  );
+  return ids.flatMap((id) => {
+    const dto = byId.get(id);
+    return dto ? [dto] : [];
+  });
 }
 
 /** เติม genres ของ track (genre enrichment — database.md §2.2) */

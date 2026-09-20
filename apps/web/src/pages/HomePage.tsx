@@ -1,29 +1,24 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import type { TrackDTO } from "@musicplayer/shared";
-import { searchApi, authApi, queueApi } from "../api";
+import { authApi, queueApi } from "../api";
+import { useSearch } from "../hooks/useSearch";
 import { getAudioEngine } from "../lib/audioEngine";
 import { useQueueStore, useToastStore } from "../stores/playerStore";
 import PlayerBar from "../components/PlayerBar";
 import QueuePanel from "../components/QueuePanel";
 
-/** หน้า demo ของ Phase 4 — search (หยาบ ๆ) + กดเล่นผ่าน AudioEngine + PlayerBar */
+/** Phase 6 — search เต็มรูปแบบ: ค้นขณะพิมพ์ (debounce 300 ms) + pagination + merged library */
 export default function HomePage() {
   const [query, setQuery] = useState("");
-  const [submitted, setSubmitted] = useState("");
   const show = useToastStore((s) => s.show);
   const engine = getAudioEngine();
+  const search = useSearch(query);
 
   // sync player+queue จาก server ตอนเปิดหน้า (restore snapshot หลัง refresh/restart)
   useEffect(() => {
     void engine.syncFromServer();
   }, [engine]);
-
-  const search = useQuery({
-    queryKey: ["search", submitted],
-    queryFn: () => searchApi.search(submitted),
-    enabled: submitted.length > 0,
-  });
 
   function onPlay(track: TrackDTO) {
     // first gesture → ต่อ Web Audio graph (edge #8)
@@ -46,34 +41,28 @@ export default function HomePage() {
       </header>
 
       <section className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-6 pb-40">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setSubmitted(query.trim());
-          }}
-          className="flex gap-2"
-        >
+        <form onSubmit={(e) => e.preventDefault()} className="flex gap-2" role="search">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="ค้นหาเพลงจาก YouTube…"
+            placeholder="ค้นหาเพลงจาก YouTube / YTMusic…"
             className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-2 outline-none focus:border-neutral-400"
           />
-          <button
-            type="submit"
-            className="rounded-lg bg-emerald-500 px-4 py-2 font-medium text-neutral-950 hover:bg-emerald-400"
-          >
-            ค้นหา
-          </button>
         </form>
 
         {search.isFetching && <p className="text-sm text-neutral-400">กำลังค้นหา…</p>}
         {search.isError && (
           <p className="text-sm text-red-400">{(search.error as Error).message}</p>
         )}
+        {search.sources.degraded.length > 0 && !search.isFetching && (
+          <p className="text-xs text-amber-400" data-testid="search-degraded">
+            บางแหล่งค้นหาใช้ไม่ได้ชั่วคราว ({search.sources.degraded.join(", ")}) —
+            แสดงเฉพาะผลที่หาได้
+          </p>
+        )}
 
-        <ul className="divide-y divide-neutral-800">
-          {search.data?.tracks.map((track) => (
+        <ul className="divide-y divide-neutral-800" data-testid="search-results">
+          {search.tracks.map((track) => (
             <li key={track.id} className="flex items-center">
               <button
                 onClick={() => onPlay(track)}
@@ -83,6 +72,7 @@ export default function HomePage() {
                   <img
                     src={track.artworkUrl}
                     alt=""
+                    loading="lazy"
                     className="h-12 w-12 rounded object-cover"
                   />
                 ) : (
@@ -104,6 +94,14 @@ export default function HomePage() {
                   )}
                 </span>
               </button>
+              <Link
+                to={`/track/${track.id}`}
+                aria-label={`track detail ${track.title}`}
+                data-testid={`track-link-${track.id}`}
+                className="rounded-full px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+              >
+                รายละเอียด
+              </Link>
               <button
                 aria-label={`add to queue ${track.title}`}
                 data-testid={`add-queue-${track.id}`}
@@ -121,6 +119,16 @@ export default function HomePage() {
             </li>
           ))}
         </ul>
+
+        {search.hasMore && !search.isFetching && (
+          <button
+            data-testid="btn-load-more"
+            onClick={search.loadMore}
+            className="w-full rounded-lg border border-neutral-700 py-2 text-sm text-neutral-300 hover:bg-neutral-900"
+          >
+            โหลดเพลงเพิ่มเติม
+          </button>
+        )}
       </section>
 
       <div className="mx-auto w-full max-w-4xl px-6">

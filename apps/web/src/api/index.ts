@@ -22,8 +22,20 @@ export const authApi = {
 };
 
 export const searchApi = {
-  search: (q: string, limit = 20) =>
-    api<SearchResponseDTO>(`/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  search: (q: string, options: { limit?: number; offset?: number } = {}) => {
+    const params = new URLSearchParams({ q });
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+    if (options.offset !== undefined && options.offset > 0)
+      params.set("offset", String(options.offset));
+    return api<SearchResponseDTO>(`/search?${params.toString()}`);
+  },
+};
+
+export const tracksApi = {
+  getById: (id: string) => api<TrackDTO>(`/tracks/${id}`),
+  /** batch (api.md endpoint 8) — ใช้ตอนต้อง hydrate หลาย track พร้อมกัน */
+  getBatch: (ids: string[]) =>
+    api<{ tracks: TrackDTO[] }>(`/tracks?ids=${encodeURIComponent(ids.join(","))}`),
 };
 
 export const playerApi = {

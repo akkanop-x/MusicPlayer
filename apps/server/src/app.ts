@@ -5,6 +5,7 @@ import type { Env } from "./config/env.js";
 import type { Db } from "./db/client.js";
 import { authRoutes, type AuthRoutesDeps } from "./routes/auth.routes.js";
 import { searchRoutes, type SearchRoutesDeps } from "./routes/search.routes.js";
+import { tracksRoutes, type TracksRoutesDeps } from "./routes/tracks.routes.js";
 import { streamRoutes, type StreamRoutesDeps } from "./routes/stream.routes.js";
 import { playerRoutes, type PlayerRoutesDeps } from "./routes/player.routes.js";
 import { queueRoutes } from "./routes/queue.routes.js";
@@ -20,6 +21,8 @@ import {
   upsertTrack,
   findTrackById,
   updateStreamMeta,
+  searchTracks,
+  findTrackDTOs,
 } from "./repositories/tracks.repo.js";
 import {
   createUser,
@@ -49,6 +52,8 @@ export interface AppDeps {
   resolver?: ResolverClient;
   /** inject ทั้ง service สำหรับ contract test (แทนที่ default ทั้ง lavalink+db) */
   search?: SearchRoutesDeps["search"];
+  /** inject ฝั่ง tracks endpoints (contract test) */
+  tracks?: Omit<TracksRoutesDeps, "jwtSecret">;
   auth?: AuthRoutesDeps;
   stream?: StreamRoutesDeps;
   player?: PlayerRoutesDeps;
@@ -138,8 +143,25 @@ export function buildApp(
             password: env.LAVALINK_PASSWORD,
           }),
         upsertTrack: (track) => upsertTrack(deps.db as Db, track),
+        searchLibrary: (q, limit) => searchTracks(deps.db as Db, q, limit),
       }).search;
-    app.register(searchRoutes, { prefix: "/api/v1", search });
+    app.register(searchRoutes, {
+      prefix: "/api/v1",
+      jwtSecret: env.JWT_SECRET,
+      search,
+    });
+  }
+
+  if (deps.tracks || deps.db) {
+    const tracks = deps.tracks ?? {
+      findTrackById: (id: string) => findTrackDTO(deps.db as Db, id),
+      findTracksByIds: (ids: string[]) => findTrackDTOs(deps.db as Db, ids),
+    };
+    app.register(tracksRoutes, {
+      prefix: "/api/v1",
+      jwtSecret: env.JWT_SECRET,
+      ...tracks,
+    });
   }
 
   // central error handler — โครงสร้าง error เดียวตาม backend.md §4 (error shape อยู่ใน packages/shared)

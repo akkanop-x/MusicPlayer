@@ -1,4 +1,4 @@
-import { apiError } from "@musicplayer/shared";
+import { apiError, ERROR_STATUS } from "@musicplayer/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
@@ -7,24 +7,31 @@ import {
   type SearchSource,
 } from "../services/SearchService.js";
 import { LavalinkError } from "../services/lavalink/errors.js";
+import { requireAuth } from "../plugins/requireAuth.js";
+import { SearchGuard } from "../security/searchGuard.js";
 
 const searchQuerySchema = z.object({
   q: z.string().trim().min(1).max(200),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).max(500).default(0),
   source: z
     .enum(Object.keys(SEARCH_SOURCES) as [SearchSource, ...SearchSource[]])
     .default("yt"),
 });
 
 export interface SearchRoutesDeps {
-  /** เว้น auth guard ไว้ก่อน — ระบบ auth ยังไม่ implement (ทราบชัดใน spec Phase 2) */
+  jwtSecret: string;
   search: (
     q: string,
-    options?: { source?: SearchSource; limit?: number },
+    options?: { source?: SearchSource; limit?: number; offset?: number },
   ) => Promise<SearchResult>;
 }
 
 export const searchRoutes: FastifyPluginAsync<SearchRoutesDeps> = async (app, deps) => {
+  app.addHook("preHandler", requireAuth(deps.jwtSecret));
+  // api.md §13: /search 30 req/min/user — in-memory พอสำหรับ single instance (Phase 13 ค่อยดู Redis)
+  const guard = new SearchGuard(30);
+
   app.get("/search", async (request, reply) => {
     const parsed = searchQuerySchema.safeParse(request.query);
     if (!parsed.success) {
@@ -38,14 +45,20 @@ export const searchRoutes: FastifyPluginAsync<SearchRoutesDeps> = async (app, de
           ),
         );
     }
+    const userId = request.user?.id ?? "";
+    if (guard.tryAcquire(userId) === "rate-limited") {
+      return reply
+        .status(ERROR_STATUS.RATE_LIMITED)
+        .send(apiError("RATE_LIMITED", "Too many searches, try again in a minute"));
+    }
 
-    const { q, limit, source } = parsed.data;
+    const { q, limit, offset, source } = parsed.data;
     try {
-      return await deps.search(q, { source, limit });
+      return await deps.search(q, { source, limit, offset });
     } catch (error) {
       if (error instanceof LavalinkError) {
         app.log.error(error, "search upstream failed");
-        // fail-soft ตาม DoD Phase 2: 503 + error ชัดเจน (ยังไม่มี local library ให้ fallback — Phase 6)
+        // fail-soft หมดทาง (library ก็ว่าง) — แจ้งชัดว่า source ไหนใช้ไม่ได้
         return reply.status(503).send(
           apiError("UPSTREAM_UNAVAILABLE", "Search upstream is unavailable", {
             sources: { available: [], degraded: [source] },

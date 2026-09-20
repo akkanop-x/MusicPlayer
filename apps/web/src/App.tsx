@@ -5,6 +5,7 @@ import { hydrateSession } from "./api";
 import { useAuthStore } from "./stores/authStore";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
+import TrackPage from "./pages/TrackPage";
 import { useToastStore } from "./stores/playerStore";
 
 const queryClient = new QueryClient({
@@ -67,6 +68,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <HomePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/track/:id"
+            element={
+              <RequireAuth>
+                <TrackPage />
               </RequireAuth>
             }
           />

@@ -1,6 +1,6 @@
 import type { TrackDTO } from "@musicplayer/shared";
 import type { TrackUpsert } from "../repositories/tracks.repo.js";
-import { LavalinkLoadError } from "./lavalink/errors.js";
+import { LavalinkError, LavalinkLoadError } from "./lavalink/errors.js";
 import type { LavalinkClient } from "./lavalink/LavalinkClient.js";
 import type { LavalinkTrack, LoadResult } from "./lavalink/types.js";
 
@@ -14,12 +14,15 @@ export type SearchSource = keyof typeof SEARCH_SOURCES;
 export interface SearchOptions {
   source?: SearchSource;
   limit?: number;
+  offset?: number;
 }
 
 export interface SearchDeps {
   /** ปกติ: (t) => upsertTrack(db, t) — inject เป็น function เพื่อให้ test ได้ seam ที่ไม่แตะ DB */
   upsertTrack: (track: TrackUpsert) => Promise<{ id: string; isNew?: boolean }>;
   lavalink: Pick<LavalinkClient, "loadTracks">;
+  /** ค้น library ที่เคย resolve (pg_trgm) — fail ได้ (service จะ degrade ให้) */
+  searchLibrary: (q: string, limit: number) => Promise<TrackDTO[]>;
 }
 
 export interface SearchResult {
@@ -28,31 +31,66 @@ export interface SearchResult {
 }
 
 /**
- * SearchService ตาม backend.md §2 — เรียก LavalinkClient, normalize → TrackDTO, upsert tracks
- * Phase 2: 1 source ต่อ request, ไม่มี local library merge (Phase 6) และไม่มี auth (phase ถัด ๆ ไป)
+ * SearchService ตาม backend.md §2 — เรียก LavalinkClient + ค้น library (pg_trgm)
+ * merge library ก่อน remote (เคย resolve = เล่นได้แน่), dedupe by id, fail-soft:
+ * lavalink ล่ม → ตอบผล library ที่มี + degraded:[source] (ว่างทั้งคู่ค่อยโยน 503 ต่อ)
  */
 export function createSearchService(deps: SearchDeps) {
   async function search(q: string, options: SearchOptions = {}): Promise<SearchResult> {
     const source: SearchSource = options.source ?? "yt";
-    const limit = options.limit ?? 20;
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+    const offset = Math.max(options.offset ?? 0, 0);
+    // Lavalink /loadtracks คืนชุดเดียวไม่รองรับ pagination จริง — ขอเกิน offset แล้ว slice
+    const fetchLimit = Math.min(limit + offset, 50);
     const prefix = SEARCH_SOURCES[source];
 
-    const result = await deps.lavalink.loadTracks(`${prefix}${q}`);
-    const lavalinkTracks = flattenLoadResult(result).slice(0, limit);
+    // library fail → degrade "library" แต่ยังคืนผล remote ได้
+    const library = await deps.searchLibrary(q, fetchLimit).catch(() => null);
 
-    const tracks: TrackDTO[] = [];
-    for (const lavalinkTrack of lavalinkTracks) {
-      const { id } = await deps.upsertTrack(toUpsert(lavalinkTrack));
-      tracks.push(toDTO(id, lavalinkTrack));
+    const available: string[] = [];
+    const degraded: string[] = [];
+    const remote: TrackDTO[] = [];
+    try {
+      const result = await deps.lavalink.loadTracks(`${prefix}${q}`);
+      const lavalinkTracks = flattenLoadResult(result).slice(0, fetchLimit);
+      for (const lavalinkTrack of lavalinkTracks) {
+        const { id } = await deps.upsertTrack(toUpsert(lavalinkTrack));
+        remote.push(toDTO(id, lavalinkTrack));
+      }
+      available.push(source);
+    } catch (error) {
+      if (error instanceof LavalinkError) {
+        degraded.push(source);
+      } else {
+        throw error;
+      }
     }
 
-    return {
-      tracks,
-      sources: { available: [source], degraded: [] },
-    };
+    // fail-soft: lavalink ล่ม + library ว่าง → ไม่มีอะไรจะตอบ โยนต่อให้ route ตอบ 503
+    if (degraded.includes(source) && available.length === 0 && !library?.length) {
+      throw new LavalinkError("search upstream failed");
+    }
+
+    const merged = dedupeById([...(library ?? []), ...remote]).slice(
+      offset,
+      offset + limit,
+    );
+    if (library?.length) available.unshift("library");
+    return { tracks: merged, sources: { available, degraded } };
   }
 
   return { search };
+}
+
+/** dedupe ตาม id รักษาลำดับแรกที่เจอ — search ทุกครั้ง upsert ลง tracks อยู่แล้ว
+ * จึงเจอ id เดียวกันทั้งจาก library และ remote */
+function dedupeById(tracks: TrackDTO[]): TrackDTO[] {
+  const seen = new Set<string>();
+  return tracks.filter((track) => {
+    if (seen.has(track.id)) return false;
+    seen.add(track.id);
+    return true;
+  });
 }
 
 /** แปลง LoadResult ทั้ง 5 loadTypes เป็นรายการ track (playlist → ทั้งชุด, empty → []) */
