@@ -53,7 +53,7 @@ move/clear/shuffle/unshuffle/repeat) ทำงาน + **previous ถูกต�
 ## Evidence (2026-09-20 — phase closed)
 
 - Tests: shared 35/35 (queueLogic) + server 111/111 (รวม queue contract ราว 20 เคส
-  + restart-restore) + web 4/4 — typecheck/lint/format เขียวทั้ง monorepo
+  - restart-restore) + web 4/4 — typecheck/lint/format เขียวทั้ง monorepo
 - Browser จริง: add 3 -> skip advance -> remove -> move -> shuffle/unshuffle ->
   previous restart (>3 s) -> **restart server + reload: queue ทั้งหมดกลับมา PAUSED**
 - บั๊กจริงที่พบระหว่าง smoke: engine เรียก /player/play ซ้ำหลัง skip -> server push
