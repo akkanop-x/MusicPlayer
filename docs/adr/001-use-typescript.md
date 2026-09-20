@@ -9,7 +9,7 @@
 
 ## Decision
 
-ใช้ TypeScript ทั้ง `apps/web` และ `apps/server` และแชร์ contract ผ่าน package `packages/shared` (playerState enum, queue pure functions, WS event types, API DTOs) จัดการเป็น **pnpm workspace monorepo**
+ใช้ TypeScript ทั้ง `apps/web` และ `apps/server` และแชร์ contract ผ่าน package `packages/shared` (playerState enum, queue pure functions, WS event types, API DTOs) จัดการเป็น **bun workspaces monorepo** (เดิม pnpm — ย้ายมา bun 2026-09-20)
 
 ## Alternatives
 

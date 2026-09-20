@@ -26,7 +26,7 @@
 
 **Tasks:**
 
-- pnpm workspace: `apps/web` (Vite React TS), `apps/server` (Fastify TS), `packages/shared`
+- bun workspaces (เดิม pnpm — ย้าย 2026-09-20): `apps/web` (Vite React TS), `apps/server` (Fastify TS), `packages/shared`
 - Tailwind + ESLint + Prettier + Vitest setup, `.env.example`, `.gitignore` (รวม `.env`)
 - `docker-compose.yml`: postgres + lavalink + resolver (placeholder) + server + web
 - Drizzle init + migration แรก (ตาม database.md)

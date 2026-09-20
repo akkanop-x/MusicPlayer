@@ -1,16 +1,30 @@
 # build context = repo root (ต้องเห็นทั้ง workspace)
-FROM node:22-alpine AS build
+FROM oven/bun:1.4.2-alpine AS build
 WORKDIR /repo
 COPY . .
-RUN corepack enable \
-  && pnpm install --frozen-lockfile \
-  && pnpm --filter @musicplayer/server typecheck \
-  && pnpm deploy --filter=@musicplayer/server --prod /out
+RUN bun install --frozen-lockfile \
+  && cd apps/server && bun run typecheck
 
-# runtime: ได้ package เดียว + prod node_modules (tsx อยู่ใน dependencies เพื่อรัน TS ตรง ๆ)
+# prod deps แยก stage เพื่อไม่ติด devDependencies ติดมาด้วย
+FROM oven/bun:1.4.2-alpine AS prod-deps
+WORKDIR /repo
+COPY package.json bun.lock ./
+COPY apps/server/package.json apps/server/
+COPY packages/shared/package.json packages/shared/
+RUN bun install --production --frozen-lockfile
+
+# runtime: bun รัน TS ได้โดยตรง (ไม่ต้องมี tsx/node)
+# bun ใช้ isolated layout: deps เป็น symlink เข้า store ที่ node_modules/.bun ของ root
+# จึงต้อง copy ทั้ง root node_modules และ apps/server/node_modules
 # migration รันอัตโนมัติใน src/index.ts ก่อน listen
-FROM node:22-alpine
-WORKDIR /app
-COPY --from=build /out .
+FROM oven/bun:1.4.2-alpine
+WORKDIR /repo
+COPY --from=prod-deps /repo/node_modules node_modules
+COPY --from=prod-deps /repo/apps/server/node_modules apps/server/node_modules
+COPY --from=prod-deps /repo/apps/server/package.json apps/server/
+COPY --from=prod-deps /repo/packages/shared/package.json packages/shared/
+COPY packages/shared/src packages/shared/src
+COPY apps/server/src apps/server/src
+COPY apps/server/drizzle apps/server/drizzle
 EXPOSE 3001
-CMD ["node_modules/.bin/tsx", "src/index.ts"]
+CMD ["bun", "apps/server/src/index.ts"]

@@ -1,5 +1,5 @@
 node_modules
 dist
 coverage
-pnpm-lock.yaml
+bun.lock
 apps/server/drizzle

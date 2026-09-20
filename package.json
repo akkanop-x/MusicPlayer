@@ -2,20 +2,26 @@
   "name": "musicplayer",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.4.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev:web": "pnpm --filter web dev",
-    "dev:server": "pnpm --filter server dev",
-    "build": "pnpm -r build",
+    "dev:web": "bun run --filter @musicplayer/web dev",
+    "dev:server": "bun run --filter @musicplayer/server dev",
+    "build": "bun run --filter '*' build",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun run --filter '*' test"
   },
+  "trustedDependencies": [
+    "esbuild"
+  ],
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^9.30.0",
