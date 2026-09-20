@@ -1,5 +1,5 @@
 /**
- * /api/v1/player/* — api.md §4 (endpoint 9–17; shuffle #18 เป็น Phase 5)
+ * /api/v1/player/* — api.md §4 (endpoint 9–18 รวม shuffle)
  * ทุก endpoint ใช้ Bearer (requireAuth) — คืน PlayerStateDTO/QueueStateDTO ทุกครั้ง
  * เพื่อให้ client sync ได้ทันทีโดยไม่ต้องรอ WS (player.md §5 #6)
  */
@@ -27,6 +27,9 @@ const playBody = z.object({ trackId: z.string().regex(UUID_RE) });
 const seekBody = z.object({ positionMs: z.number().int().min(0) });
 const volumeBody = z.object({ volume: z.number().int().min(0).max(100) });
 const repeatBody = z.object({ mode: z.enum(REPEAT_MODES) });
+const shuffleBody = z.object({ enabled: z.boolean() });
+// reason="completed" = เพลงจบเอง (client ยิงตอน ended — repeat=one จะ replay ตาม queue.md §5)
+const skipBody = z.object({ reason: z.enum(["completed", "skip"]).optional() });
 
 function toHttp(error: unknown): { status: number; body: ReturnType<typeof apiError> } {
   if (error instanceof PlayerError) {
@@ -90,9 +93,17 @@ export const playerRoutes: FastifyPluginAsync<PlayerRoutesDeps> = async (app, de
     );
   });
 
-  app.post("/player/skip", (request, reply) =>
-    run(app, reply, () => deps.player.skip(request.user!.id)),
-  );
+  app.post("/player/skip", (request, reply) => {
+    const parsed = skipBody.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return void reply
+        .status(400)
+        .send(apiError("VALIDATION_ERROR", "reason must be completed|skip"));
+    }
+    return run(app, reply, () =>
+      deps.player.skip(request.user!.id, parsed.data.reason ?? "skip"),
+    );
+  });
 
   app.post("/player/previous", (request, reply) =>
     run(app, reply, () => deps.player.previous(request.user!.id)),
@@ -121,6 +132,19 @@ export const playerRoutes: FastifyPluginAsync<PlayerRoutesDeps> = async (app, de
     }
     return run(app, reply, () =>
       deps.player.setRepeatMode(request.user!.id, parsed.data.mode),
+    );
+  });
+
+  // api.md §4 #18 — shuffle คืน QueueStateDTO (queue.md §4: สลับเฉพาะ upcoming)
+  app.patch("/player/shuffle", (request, reply) => {
+    const parsed = shuffleBody.safeParse(request.body);
+    if (!parsed.success) {
+      return void reply
+        .status(400)
+        .send(apiError("VALIDATION_ERROR", "enabled (boolean) is required"));
+    }
+    return run(app, reply, () =>
+      deps.player.setShuffleEnabled(request.user!.id, parsed.data.enabled),
     );
   });
 };

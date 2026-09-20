@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { signJwt } from "../services/auth/jwt.js";
 import { buildApp } from "../app.js";
-import { createPlayerService, type PlayerDeps } from "../services/PlayerService.js";
+import { createPlayerService, type QueueSnapshot } from "../services/PlayerService.js";
 import type { TrackDTO } from "@musicplayer/shared";
 
 const T1: TrackDTO = {
@@ -25,18 +25,33 @@ const LIVE: TrackDTO = {
   isSeekable: false,
 };
 
-function makeDeps(): PlayerDeps & { tracks: Map<string, TrackDTO> } {
+function makeDeps() {
   const tracks = new Map<string, TrackDTO>([
     [T1.id, T1],
     [LIVE.id, LIVE],
   ]);
   const settingsStore = new Map<
     string,
-    { volume?: number; repeatMode?: TrackDTO["isLiked"] extends never ? never : string }
+    { volume?: number; repeatMode?: string; shuffle?: boolean }
   >();
+  /** fake snapshot store — ใช้ทดสอบ persist/restore โดยไม่แตะ DB */
+  const snapshots = new Map<
+    string,
+    {
+      currentTrackId: string | null;
+      positionMs: number;
+      shuffleOn: boolean;
+      repeatMode: "off" | "one" | "all";
+      upcoming: Array<{ id: string; trackId: string; originalPosition: number }>;
+      history: Array<{ id: string; trackId: string; originalPosition: number }>;
+    }
+  >();
+  let itemSeq = 0;
   return {
     tracks,
-    findTrack: async (id) => tracks.get(id) ?? null,
+    snapshots,
+    nextItemId: () => `aaaaaaaa-aaaa-4aaa-8aaa-${String(++itemSeq).padStart(12, "0")}`,
+    findTrack: async (id: string) => tracks.get(id) ?? null,
     getSettings: async () => ({
       volume: 80,
       muted: false,
@@ -44,8 +59,15 @@ function makeDeps(): PlayerDeps & { tracks: Map<string, TrackDTO> } {
       shuffle: false,
       autoplay: true,
     }),
-    saveSettings: async (userId, patch) => {
+    saveSettings: async (
+      userId: string,
+      patch: { volume?: number; repeatMode?: "off" | "one" | "all"; shuffle?: boolean },
+    ) => {
       settingsStore.set(userId, { ...settingsStore.get(userId), ...patch });
+    },
+    loadQueue: async (userId: string) => snapshots.get(userId) ?? null,
+    saveQueue: async (userId: string, snapshot: QueueSnapshot) => {
+      snapshots.set(userId, JSON.parse(JSON.stringify(snapshot)) as QueueSnapshot);
     },
   };
 }
@@ -231,8 +253,8 @@ describe("pause/resume/seek", () => {
   });
 });
 
-describe("skip/previous (queue จำลอง 1 เพลง)", () => {
-  it("skip โดยไม่มี repeat → 409 NO_NEXT + QueueStateDTO shape", async () => {
+describe("skip/previous", () => {
+  it("skip โดยไม่มี repeat และ upcoming ว่าง → 409 NO_NEXT", async () => {
     const { app, authed } = makeHarness();
     const res = await app.inject({
       method: "POST",
@@ -244,27 +266,36 @@ describe("skip/previous (queue จำลอง 1 เพลง)", () => {
     await app.close();
   });
 
-  it("repeat=one → skip วนเพลงเดิม + ได้ QueueStateDTO (upcoming ว่าง)", async () => {
+  it("repeat=one: reason=completed → replay current (history ไม่เพิ่ม); skip (เจตนาผู้ใช้) + upcoming ว่าง → 409 NO_NEXT", async () => {
     const { app, authed } = makeHarness();
-    await app.inject({ ...PLAY, headers: authed });
     await app.inject({
       method: "PATCH",
       url: "/api/v1/player/repeat",
       headers: authed,
       payload: { mode: "one" },
     });
-    const res = await app.inject({
+    await app.inject({ ...PLAY, headers: authed });
+
+    // เพลงจบเอง (reason=completed) → replay current โดยไม่ push history
+    const completed = await app.inject({
       method: "POST",
       url: "/api/v1/player/skip",
       headers: authed,
+      payload: { reason: "completed" },
     });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({
-      current: T1,
-      upcoming: [],
-      history: [],
-      version: expect.any(Number),
+    expect(completed.statusCode).toBe(200);
+    expect(completed.json().current.track.id).toBe(T1.id);
+    expect(completed.json().history).toHaveLength(0);
+
+    // skip = เจตนาผู้ใช้ → advance ปกติ ไม่วนเพลงเดิม (queue.md §5)
+    const userSkip = await app.inject({
+      method: "POST",
+      url: "/api/v1/player/skip",
+      headers: authed,
+      payload: {},
     });
+    expect(userSkip.statusCode).toBe(409);
+    expect(userSkip.json().error.code).toBe("NO_NEXT");
     await app.close();
   });
 

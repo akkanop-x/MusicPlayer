@@ -37,10 +37,16 @@ export interface PlayerStateDTO {
   autoplay: boolean;
 }
 
-/** api.md §4 — skip คืน queue; Phase 4 queue จำลอง 1 เพลง (Phase 5 ของจริง) */
+/** ชิ้นเดียวใน queue — id สุ่มต่อชิ้น (track ซ้ำได้, remove/move by id — queue.md §1) */
+export interface QueueItemDTO {
+  id: string;
+  track: TrackDTO;
+}
+
+/** api.md §5 — คืนจากทุก /queue endpoint และ /player/skip|shuffle */
 export interface QueueStateDTO {
-  current: TrackDTO | null;
-  upcoming: TrackDTO[];
-  history: TrackDTO[];
+  current: QueueItemDTO | null;
+  upcoming: QueueItemDTO[];
+  history: QueueItemDTO[];
   version: number;
 }

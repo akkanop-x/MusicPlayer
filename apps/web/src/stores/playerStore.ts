@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { PlayerStateDTO, TrackDTO } from "@musicplayer/shared";
+import type { PlayerStateDTO, QueueStateDTO, TrackDTO } from "@musicplayer/shared";
 
 /**
  * mirror ของ server player state (player.md §4) — อัปเดตจาก response ของทุก /player call
@@ -64,4 +64,17 @@ interface IntentStore {
 export const useIntentStore = create<IntentStore>((set) => ({
   pendingTrack: null,
   setPendingTrack: (pendingTrack) => set({ pendingTrack }),
+}));
+
+/** mirror ของ server queue (queue.md) — อัปเดตจาก response ของทุก /queue และ /player คำสั่ง */
+interface QueueStore extends QueueStateDTO {
+  setQueueDto: (dto: QueueStateDTO) => void;
+}
+
+export const useQueueStore = create<QueueStore>((set) => ({
+  current: null,
+  upcoming: [],
+  history: [],
+  version: 0,
+  setQueueDto: (dto) => set(dto),
 }));

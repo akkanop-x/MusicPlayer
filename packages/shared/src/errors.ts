@@ -17,6 +17,7 @@ export const ERROR_CODES = [
   "NOT_PAUSED",
   "NO_NEXT",
   "NO_PREVIOUS",
+  "ITEM_IS_CURRENT",
   "INTERNAL",
 ] as const;
 
@@ -55,5 +56,6 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   NOT_PAUSED: 409,
   NO_NEXT: 409,
   NO_PREVIOUS: 409,
+  ITEM_IS_CURRENT: 409,
   INTERNAL: 500,
 };

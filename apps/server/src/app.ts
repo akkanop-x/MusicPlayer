@@ -7,6 +7,7 @@ import { authRoutes, type AuthRoutesDeps } from "./routes/auth.routes.js";
 import { searchRoutes, type SearchRoutesDeps } from "./routes/search.routes.js";
 import { streamRoutes, type StreamRoutesDeps } from "./routes/stream.routes.js";
 import { playerRoutes, type PlayerRoutesDeps } from "./routes/player.routes.js";
+import { queueRoutes } from "./routes/queue.routes.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { createSearchService } from "./services/SearchService.js";
 import { createStreamService } from "./services/StreamService.js";
@@ -36,6 +37,10 @@ import {
   getUserSettings,
   saveUserSettings,
 } from "./repositories/player.repo.js";
+import {
+  loadQueueSnapshot,
+  saveQueueSnapshot,
+} from "./repositories/queueSnapshot.repo.js";
 
 export interface AppDeps {
   /** ไม่ส่งมา = ไม่ register search/auth/stream routes (ใช้ใน test ที่ไม่แตะ DB) */
@@ -80,16 +85,27 @@ export function buildApp(
   if (deps.player || deps.db) {
     const player =
       deps.player ??
-      ({
-        jwtSecret: env.JWT_SECRET,
-        player: createPlayerService({
-          findTrack: (trackId) => findTrackDTO(deps.db as Db, trackId),
-          getSettings: (userId) => getUserSettings(deps.db as Db, userId),
-          saveSettings: (userId, patch) =>
-            saveUserSettings(deps.db as Db, userId, patch),
-        }),
-      } satisfies PlayerRoutesDeps);
+      ((): PlayerRoutesDeps => {
+        return {
+          jwtSecret: env.JWT_SECRET,
+          player: createPlayerService({
+            findTrack: (trackId) => findTrackDTO(deps.db as Db, trackId),
+            getSettings: (userId) => getUserSettings(deps.db as Db, userId),
+            saveSettings: (userId, patch) =>
+              saveUserSettings(deps.db as Db, userId, patch),
+            loadQueue: (userId) => loadQueueSnapshot(deps.db as Db, userId),
+            saveQueue: (userId, snapshot) =>
+              saveQueueSnapshot(deps.db as Db, userId, snapshot),
+          }),
+        };
+      })();
     app.register(playerRoutes, { prefix: "/api/v1", ...player });
+    // queue routes ใช้ player service อินสแตนซ์เดียวกัน (state ต่อ user ชุดเดียว)
+    app.register(queueRoutes, {
+      prefix: "/api/v1",
+      jwtSecret: player.jwtSecret,
+      player: player.player,
+    });
   }
 
   if (deps.stream || deps.db) {

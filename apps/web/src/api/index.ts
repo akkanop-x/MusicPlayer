@@ -34,12 +34,33 @@ export const playerApi = {
   resume: () => api<PlayerStateDTO>("/player/resume", { method: "POST" }),
   seek: (positionMs: number) =>
     apiJson<PlayerStateDTO>("POST", "/player/seek", { positionMs }),
-  skip: () => api<QueueStateDTO>("/player/skip", { method: "POST" }),
+  /** reason="completed" เมื่อเพลงจบเอง (repeat=one จะ replay ตาม queue.md §5) */
+  skip: (reason: "completed" | "skip" = "skip") =>
+    api<QueueStateDTO>("/player/skip", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   previous: () => api<PlayerStateDTO>("/player/previous", { method: "POST" }),
   setVolume: (volume: number) =>
     apiJson<PlayerStateDTO>("PATCH", "/player/volume", { volume }),
   setRepeat: (mode: PlayerStateDTO["repeatMode"]) =>
     apiJson<PlayerStateDTO>("PATCH", "/player/repeat", { mode }),
+  setShuffle: (enabled: boolean) =>
+    apiJson<QueueStateDTO>("PATCH", "/player/shuffle", { enabled }),
+};
+
+export const queueApi = {
+  getQueue: () => api<QueueStateDTO>("/queue"),
+  add: (trackIds: string[]) =>
+    apiJson<QueueStateDTO>("POST", "/queue/tracks", { trackIds }),
+  addNext: (trackIds: string[]) =>
+    apiJson<QueueStateDTO>("POST", "/queue/tracks/next", { trackIds }),
+  move: (itemId: string, toPosition: number) =>
+    apiJson<QueueStateDTO>("PATCH", `/queue/items/${itemId}/move`, { toPosition }),
+  remove: (itemId: string) =>
+    api<QueueStateDTO>(`/queue/items/${itemId}`, { method: "DELETE" }),
+  clear: (scope: "upcoming" | "all" = "upcoming") =>
+    api<QueueStateDTO>(`/queue?scope=${scope}`, { method: "DELETE" }),
 };
 
 /** ฟื้นเซสชันตอนโหลดหน้า — ลอง refresh เงียบ ๆ แล้วดึง /me */

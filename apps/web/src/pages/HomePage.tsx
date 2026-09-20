@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { TrackDTO } from "@musicplayer/shared";
-import { searchApi, authApi } from "../api";
+import { searchApi, authApi, queueApi } from "../api";
 import { getAudioEngine } from "../lib/audioEngine";
-import { useToastStore } from "../stores/playerStore";
+import { useQueueStore, useToastStore } from "../stores/playerStore";
 import PlayerBar from "../components/PlayerBar";
+import QueuePanel from "../components/QueuePanel";
 
 /** หน้า demo ของ Phase 4 — search (หยาบ ๆ) + กดเล่นผ่าน AudioEngine + PlayerBar */
 export default function HomePage() {
@@ -12,6 +13,11 @@ export default function HomePage() {
   const [submitted, setSubmitted] = useState("");
   const show = useToastStore((s) => s.show);
   const engine = getAudioEngine();
+
+  // sync player+queue จาก server ตอนเปิดหน้า (restore snapshot หลัง refresh/restart)
+  useEffect(() => {
+    void engine.syncFromServer();
+  }, [engine]);
 
   const search = useQuery({
     queryKey: ["search", submitted],
@@ -68,10 +74,10 @@ export default function HomePage() {
 
         <ul className="divide-y divide-neutral-800">
           {search.data?.tracks.map((track) => (
-            <li key={track.id}>
+            <li key={track.id} className="flex items-center">
               <button
                 onClick={() => onPlay(track)}
-                className="flex w-full items-center gap-3 px-2 py-3 text-left hover:bg-neutral-900"
+                className="flex w-full flex-1 items-center gap-3 px-2 py-3 text-left hover:bg-neutral-900"
               >
                 {track.artworkUrl ? (
                   <img
@@ -98,10 +104,28 @@ export default function HomePage() {
                   )}
                 </span>
               </button>
+              <button
+                aria-label={`add to queue ${track.title}`}
+                data-testid={`add-queue-${track.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void queueApi
+                    .add([track.id])
+                    .then(useQueueStore.getState().setQueueDto)
+                    .catch((err) => show(String((err as Error).message)));
+                }}
+                className="mr-1 rounded-full px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+              >
+                ＋ คิว
+              </button>
             </li>
           ))}
         </ul>
       </section>
+
+      <div className="mx-auto w-full max-w-4xl px-6">
+        <QueuePanel />
+      </div>
 
       <PlayerBar onToast={show} />
     </main>

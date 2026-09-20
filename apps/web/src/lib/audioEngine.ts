@@ -14,13 +14,15 @@ import {
   shouldAutoAdvance,
   transition,
   type PlayerContext,
+  type PlayerStateDTO,
   type TrackDTO,
 } from "@musicplayer/shared";
-import { playerApi } from "../api";
+import { playerApi, queueApi } from "../api";
 import {
   useIntentStore,
   usePlayerStore,
   useProgressStore,
+  useQueueStore,
   useToastStore,
 } from "../stores/playerStore";
 
@@ -32,6 +34,8 @@ export class AudioEngine {
   private mediaSource: MediaElementAudioSourceNode | null = null;
   /** generation counter — คำสั่ง play ที่ใหม่กว่ายกเลิกผลของอันเก่า (#1/#2) */
   private playSeq = 0;
+  /** generation counter ของ refreshQueue — กัน response เก่าทับ queue ใหม่ */
+  private refreshSeq = 0;
   /** expose เพื่อ test (element เดียวเสมอ — ห้ามสร้าง <audio> ที่ไหนอื่น) */
   get element(): HTMLAudioElement {
     return this.audio;
@@ -156,14 +160,12 @@ export class AudioEngine {
   }
 
   // ---------- คำสั่ง ----------
-  /** play track ใหม่ (หรือ restart track เดิม) — เรียกได้ถี่แค่ไหนก็ได้ (#1/#2) */
+  /** play now (POST /player/play — แทนที่ upcoming) — เรียกได้ถี่แค่ไหนก็ได้ (#1/#2) */
   async play(track: TrackDTO): Promise<void> {
     this.ensureAudioGraph();
     const seq = ++this.playSeq;
     // #1/#2: ตัด session เดิมทิ้งก่อน — element เดียว = เสียงเก่าหยุดทันที
-    this.audio.pause();
-    this.audio.removeAttribute("src");
-    this.audio.load();
+    this.teardownStream();
 
     useIntentStore.getState().setPendingTrack(track);
     const dto = await playerApi.play(track.id).catch((error) => {
@@ -176,15 +178,33 @@ export class AudioEngine {
     // มี play ใหม่สั่งระหว่างรอ server → ทิ้งผลของอันเก่า
     if (!dto || seq !== this.playSeq) return;
 
-    this.ctx = transition(this.ctx, { type: "LOAD", trackId: track.id });
     usePlayerStore.getState().setStateDto(dto);
+    this.startStream(track, dto);
+    void this.refreshQueue();
+  }
+
+  /**
+   * โหลดเสียงของ track ที่ server ตั้งเป็น current แล้ว (skip/previous/advance ผ่าน
+   * /player/skip — **ห้าม** ยิง /player/play ซ้ำ ไม่งั้น server จะ push history ซ้ำ
+   * และล้าง upcoming — บั๊กจริงตอน smoke Phase 5)
+   */
+  private startStream(track: TrackDTO, dto?: PlayerStateDTO): void {
+    this.ctx = transition(this.ctx, { type: "LOAD", trackId: track.id });
+    const state = dto ?? usePlayerStore.getState();
     this.audio.src = this.streamUrl(track.id);
-    this.audio.volume = dto.muted ? 0 : dto.volume / 100;
+    this.audio.volume = state.muted ? 0 : state.volume / 100;
     // server ตอบ PLAYING แบบ optimistic (player.md §4) — เสียงจริงยืนยันด้วย canplay/playing
-    if (dto.state === "PAUSED") {
+    if (state.state === "PAUSED") {
       this.ctx = transition(this.ctx, { type: "PAUSE", positionMs: 0 });
     }
     void this.audio.play().catch(() => undefined);
+  }
+
+  /** #1/#2: หยุด/ตัด stream เดิมก่อนโหลดใหม่ — element เดียว = เสียงซ้อนไม่มีทางเกิด */
+  private teardownStream(): void {
+    this.audio.pause();
+    this.audio.removeAttribute("src");
+    this.audio.load();
   }
 
   async pause(): Promise<void> {
@@ -231,10 +251,18 @@ export class AudioEngine {
     void this.audio.play().catch(() => undefined);
   }
 
-  async skip(): Promise<void> {
+  async skip(reason: "completed" | "skip" = "skip"): Promise<void> {
     try {
-      const queue = await playerApi.skip();
-      if (queue.current) await this.play(queue.current);
+      const queue = await playerApi.skip(reason);
+      useQueueStore.getState().setQueueDto(queue);
+      if (queue.current?.track) {
+        this.startStream(queue.current.track);
+        return;
+      }
+      // advance คืน null = queue จบ (upcoming ว่าง, repeat off) → IDLE
+      this.ctx = transition(this.ctx, { type: "STOP" });
+      usePlayerStore.getState().patchState({ state: "IDLE" });
+      useIntentStore.getState().setPendingTrack(null);
     } catch (error) {
       useToastStore.getState().show(String((error as Error).message));
     }
@@ -250,9 +278,23 @@ export class AudioEngine {
     }
     try {
       const dto = await playerApi.previous();
-      if (dto.track) await this.play(dto.track);
+      if (dto.track) {
+        this.startStream(dto.track, dto);
+        void this.refreshQueue();
+      }
     } catch (error) {
       useToastStore.getState().show(String((error as Error).message));
+    }
+  }
+
+  /** ดึง queue ล่าสุดจาก server เข้า store — seq guard กัน response เก่าทับใหม่ (race) */
+  async refreshQueue(): Promise<void> {
+    const seq = ++this.refreshSeq;
+    try {
+      const queue = await queueApi.getQueue();
+      if (seq === this.refreshSeq) useQueueStore.getState().setQueueDto(queue);
+    } catch {
+      // ยังไม่ล็อกอิน — ไม่เป็นไร
     }
   }
 
@@ -282,25 +324,18 @@ export class AudioEngine {
   }
 
   // ---------- events ปลายทาง ----------
+  /** เพลงจบเอง → advance ฝั่ง server (queue.md §5: repeat one replay / ดึง upcoming / จบ → IDLE) */
   private async handleEnded(): Promise<void> {
-    const { repeatMode } = usePlayerStore.getState();
-    if (repeatMode === "one") {
-      await this.skip(); // repeat one → skip วนเพลงเดิม (server จัดการ)
-      return;
-    }
-    // Phase 4: mock queue 1 เพลง — ไม่มี upcoming → จบกลับ IDLE
-    this.ctx = transition(this.ctx, { type: "STOP" });
-    usePlayerStore.getState().patchState({ state: "IDLE" });
-    useIntentStore.getState().setPendingTrack(null);
+    await this.skip("completed");
   }
 
   /** #4: error → auto-advance ผ่าน server skip; ครบ 3 ติด → IDLE + toast */
   private async handleError(): Promise<void> {
     if (shouldAutoAdvance(this.ctx)) {
       try {
-        const queue = await playerApi.skip();
+        const queue = await playerApi.skip("skip");
         if (queue.current) {
-          await this.play(queue.current);
+          this.startStream(queue.current.track);
           return;
         }
       } catch {
@@ -318,6 +353,7 @@ export class AudioEngine {
     try {
       const dto = await playerApi.getState();
       usePlayerStore.getState().setStateDto(dto);
+      await this.refreshQueue();
     } catch {
       // ยังไม่ล็อกอิน — ไม่เป็นไร
     }
