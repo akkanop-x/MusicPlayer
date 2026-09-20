@@ -1,0 +1,17 @@
+# Lavalink v4 — config แบบ minimal เพื่อให้ container ลุกใน Phase 1
+# ⚠️ การ verify config กับตัวอย่างของเวอร์ชันที่ pin + ติดตั้ง youtube-source และ LavaSrc
+#    เป็นงานของ Phase 2 (docs/lavalink.md §2.2, ADR-008)
+server:
+  port: 2333
+  address: 0.0.0.0
+
+lavalink:
+  server:
+    password: "${LAVALINK_PASSWORD}"
+  plugins: []
+
+logging:
+  logback:
+    rollingpolicy:
+      max-file-size: 25MB
+      max-history: 2

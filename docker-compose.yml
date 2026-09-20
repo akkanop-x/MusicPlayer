@@ -1,0 +1,69 @@
+# Phase 1 — ทั้ง stack ลุกด้วย `docker compose up`
+# ค่า default ด้านล่างเป็นค่า dev เท่านั้น — สร้าง .env จาก .env.example ก่อนใช้จริง
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-music}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-music}
+      POSTGRES_DB: ${POSTGRES_DB:-musicplayer}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-music} -d ${POSTGRES_DB:-musicplayer}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    volumes:
+      - ./services/lavalink/application.yml:/opt/Lavalink/application.yml:ro
+    environment:
+      LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+    ports:
+      - "2333:2333"
+
+  resolver:
+    build: ./services/resolver
+    ports:
+      - "3002:3002"
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/docker/Dockerfile
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-music}:${POSTGRES_PASSWORD:-music}@postgres:5432/${POSTGRES_DB:-musicplayer}
+      PORT: "3001"
+      LAVALINK_URL: http://lavalink:2333
+      LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:-youshallnotpass}
+      RESOLVER_URL: http://resolver:3002
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-32-chars!!}
+      REFRESH_SECRET: ${REFRESH_SECRET:-dev-only-secret-change-me-32-chars!!}
+      CORS_ORIGIN: http://localhost:8080
+    ports:
+      - "3101:3001" # host 3101 (3001 บนเครื่อง dev อาจถูกใช้อยู่); ภายใน network ยังเป็น 3001
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/docker/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      server:
+        condition: service_healthy
+
+volumes:
+  pgdata:
