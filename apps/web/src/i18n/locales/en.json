@@ -1,0 +1,137 @@
+{
+  "common": {
+    "back": "← Back",
+    "backToSearch": "Back to search",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "logout": "Log out",
+    "nav": {
+      "home": "Home",
+      "search": "Search",
+      "library": "Library",
+      "settings": "Settings"
+    }
+  },
+  "auth": {
+    "login": "Log in",
+    "register": "Create account",
+    "displayName": "Display name",
+    "email": "Email",
+    "password": "Password",
+    "submitting": "Working...",
+    "submitLogin": "Log in",
+    "submitRegister": "Sign up",
+    "toRegister": "No account yet? Sign up",
+    "toLogin": "Already have an account? Log in"
+  },
+  "home": {
+    "greetingMorning": "Good morning",
+    "greetingAfternoon": "Good afternoon",
+    "greetingEvening": "Good evening",
+    "greetingNight": "Up late tonight",
+    "searchCta": "Search songs from YouTube / YTMusic",
+    "searchCtaDesc": "Search and play instantly",
+    "libraryCta": "Your library",
+    "libraryCtaDesc": "Playlists / Liked / History",
+    "settingsCta": "Settings",
+    "settingsCtaDesc": "Equalizer / Language / Account",
+    "queueSummary": "Current queue",
+    "queueUpcoming": "{{count}} track(s) in queue",
+    "queueEmpty": "Queue is empty — search a song and add it",
+    "emptyTitle": "Nothing playing yet",
+    "emptyDesc": "Search for your first track"
+  },
+  "search": {
+    "placeholder": "Search songs from YouTube / YTMusic…",
+    "searching": "Searching…",
+    "noResults": "No results — try another query",
+    "hint": "Type to search for tracks",
+    "degraded": "Some sources are temporarily unavailable ({{sources}}) — showing what we found",
+    "loadMore": "Load more tracks",
+    "results": "Results",
+    "addQueue": "＋ Queue",
+    "detail": "Details",
+    "playAgain": "Play again",
+    "play": "▶ Play"
+  },
+  "library": {
+    "title": "Your library",
+    "tabPlaylists": "Playlists",
+    "tabLiked": "Liked",
+    "tabHistory": "History",
+    "emptyPlaylistsTitle": "No playlists yet",
+    "emptyPlaylistsDesc": "You'll be able to create your first playlist soon",
+    "emptyLikedTitle": "No liked songs yet",
+    "emptyLikedDesc": "Tap the heart on a track to keep it here",
+    "emptyHistoryTitle": "No listening history yet",
+    "emptyHistoryDesc": "Tracks you play will show up here",
+    "comingSoon": "This feature is coming in the next phase"
+  },
+  "playlist": {
+    "notFoundTitle": "Playlist not found",
+    "notFoundDesc": "Playlists are not available yet — coming in the next phase"
+  },
+  "track": {
+    "title": "Track",
+    "notFound": "Track not found in the system",
+    "play": "▶ Play",
+    "addToQueue": "＋ Add to queue",
+    "added": "Added to queue"
+  },
+  "settings": {
+    "title": "Settings",
+    "sectionLanguage": "Language",
+    "languageDesc": "Choose the UI language (saved to your account — all devices follow)",
+    "languageTh": "ไทย",
+    "languageEn": "English",
+    "sectionAccount": "Account",
+    "loggedInAs": "Logged in as",
+    "sectionEq": "Equalizer"
+  },
+  "eq": {
+    "preset": "Preset",
+    "noEq": "No EQ (Flat)",
+    "mine": "(mine)",
+    "deletePreset": "Delete this preset",
+    "saveAsPreset": "Save as my preset",
+    "resetFlat": "Reset to Flat",
+    "hint": "Changes are audible instantly — save as a preset to keep them after refresh",
+    "namePrompt": "Name your preset:",
+    "db": "dB",
+    "hz": "Hz"
+  },
+  "player": {
+    "previous": "previous",
+    "play": "play",
+    "pause": "pause",
+    "skip": "skip",
+    "repeatOff": "repeat off",
+    "repeatOne": "repeat one",
+    "repeatAll": "repeat all",
+    "shuffleOn": "shuffle on",
+    "shuffleOff": "shuffle off",
+    "expand": "Open now playing",
+    "collapse": "Collapse",
+    "volume": "volume",
+    "seek": "seek",
+    "idle": "Nothing playing yet",
+    "loadingTrack": "Loading…"
+  },
+  "queue": {
+    "title": "Now playing / Up next",
+    "clear": "Clear queue",
+    "empty": "Queue is empty — add tracks from search results",
+    "historyTitle": "Played",
+    "remove": "Remove from queue",
+    "restore": "Play from history"
+  },
+  "nowPlaying": {
+    "upNext": "Up next"
+  },
+  "toast": {
+    "playFailed": "Couldn't play this track — try another one",
+    "pauseFailed": "Pause failed",
+    "resumeFailed": "Resume failed",
+    "unplayable": "Can't play this track — skipping to the next"
+  }
+}

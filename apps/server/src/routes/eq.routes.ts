@@ -18,10 +18,12 @@ export interface EqRoutesDeps {
   hub: Broadcaster;
 }
 
+// locale เพิ่มตาม frontend.md §6.1 (สลับภาษาใน Settings → PATCH /settings { locale })
 const patchSettingsBody = z.object({
   volume: z.number().int().min(0).max(100).optional(),
   muted: z.boolean().optional(),
   autoplay: z.boolean().optional(),
+  locale: z.enum(["th", "en"]).optional(),
 });
 
 const createPresetBody = z.object({
@@ -67,7 +69,12 @@ export const eqRoutes: FastifyPluginAsync<EqRoutesDeps> = async (app, deps) => {
     if (!parsed.success) {
       return void reply
         .status(400)
-        .send(apiError("VALIDATION_ERROR", "volume (0–100) / muted / autoplay only"));
+        .send(
+          apiError(
+            "VALIDATION_ERROR",
+            "volume (0–100) / muted / autoplay / locale (th|en) only",
+          ),
+        );
     }
     return deps.eq
       .patchSettings(request.user!.id, parsed.data)

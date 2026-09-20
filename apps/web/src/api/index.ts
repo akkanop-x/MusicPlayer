@@ -80,8 +80,12 @@ export const queueApi = {
 /** Settings + EQ (api.md §10 #38–44) — equalizer.md §5: เลือก preset apply local ก่อน แล้วค่อยยิง REST */
 export const settingsApi = {
   get: () => api<UserSettingsDTO>("/settings"),
-  patch: (patch: { volume?: number; muted?: boolean; autoplay?: boolean }) =>
-    apiJson<UserSettingsDTO>("PATCH", "/settings", patch),
+  patch: (patch: {
+    volume?: number;
+    muted?: boolean;
+    autoplay?: boolean;
+    locale?: "th" | "en";
+  }) => apiJson<UserSettingsDTO>("PATCH", "/settings", patch),
 };
 
 export const eqApi = {

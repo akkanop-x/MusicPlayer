@@ -266,6 +266,25 @@ describe("REST — settings + eq presets (api.md §10 #38–44)", () => {
     expect(patched.json()).toMatchObject({ volume: 50, autoplay: false, muted: false });
   });
 
+  it("PATCH /settings locale → กลับค่าที่ตั้ง / แปลกปลอม → 400", async () => {
+    const ok = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/settings",
+      headers: auth(),
+      payload: { locale: "en" },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().locale).toBe("en");
+
+    const bad = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/settings",
+      headers: auth(),
+      payload: { locale: "jp" },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it("PATCH /settings ค่าผิด range → 400", async () => {
     const res = await app.inject({
       method: "PATCH",

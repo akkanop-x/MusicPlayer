@@ -376,6 +376,14 @@ export function createPlayerService(deps: PlayerDeps) {
       type: "SEEK",
       positionMs: clampSeek(user.ctx, positionMs),
     });
+    // SEEK → BUFFERING ชั่วคราว (player.md §3) — แต่ server ไม่มี media element จึงไม่มี
+    // SEEKED คืน: จบ seek แล้วเล่นต่อทันที (E2E J6 เจอ ctx ค้าง BUFFERING ตลอดหลัง seek)
+    if (user.ctx.state === "BUFFERING") {
+      user.ctx = transition(user.ctx, {
+        type: "SEEKED",
+        positionMs: user.ctx.positionMs,
+      });
+    }
     emit(userId, RealtimeEvents.PlayerStateChanged, {
       state: user.ctx.state,
       track: user.queue.current?.track ?? null,

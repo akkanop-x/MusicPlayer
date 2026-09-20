@@ -162,7 +162,7 @@ export async function getUserSettingsFull(
 export async function patchUserSettings(
   db: Db,
   userId: string,
-  patch: { volume?: number; muted?: boolean; autoplay?: boolean },
+  patch: { volume?: number; muted?: boolean; autoplay?: boolean; locale?: string },
 ): Promise<UserSettingsDTO> {
   await db
     .insert(userSettings)

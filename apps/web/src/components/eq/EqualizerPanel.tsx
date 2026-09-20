@@ -4,6 +4,7 @@
  * preset (PUT /eq/active) หรือบันทึกเป็น custom preset (POST + active)
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { EQ_BANDS, EQ_GAIN_MAX, EQ_GAIN_MIN } from "@musicplayer/shared";
 import { eqApi } from "../../api";
 import { getAudioEngine } from "../../lib/audioEngine";
@@ -15,6 +16,7 @@ function bandLabel(freq: number): string {
 }
 
 export default function EqualizerPanel() {
+  const { t } = useTranslation();
   const engine = getAudioEngine();
   const show = useToastStore((s) => s.show);
   const { presets, activePresetId, activeBands, draftBands } = useEqStore();
@@ -52,7 +54,7 @@ export default function EqualizerPanel() {
 
   async function onSaveDraft() {
     if (!draftBands) return;
-    const name = window.prompt("ชื่อ preset ของคุณ:");
+    const name = window.prompt(t("eq:namePrompt"));
     if (!name) return;
     setSaving(true);
     try {
@@ -93,11 +95,11 @@ export default function EqualizerPanel() {
           onChange={(e) => void onSelectPreset(e.target.value)}
           className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm"
         >
-          <option value="">ไม่ใช้ EQ (Flat)</option>
+          <option value="">{t("eq:noEq")}</option>
           {presets.map((preset) => (
             <option key={preset.id} value={preset.id}>
               {preset.name}
-              {preset.isSystem ? "" : " (ของฉัน)"}
+              {preset.isSystem ? "" : ` ${t("eq:mine")}`}
             </option>
           ))}
         </select>
@@ -107,7 +109,7 @@ export default function EqualizerPanel() {
             onClick={() => void onDeleteActive()}
             className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-900"
           >
-            ลบ preset นี้
+            {t("eq:deletePreset")}
           </button>
         )}
       </div>
@@ -116,7 +118,7 @@ export default function EqualizerPanel() {
         {EQ_BANDS.map((band, i) => (
           <li key={band.freq} className="flex items-center gap-3">
             <span className="w-12 text-right text-xs text-neutral-400">
-              {bandLabel(band.freq)} Hz
+              {bandLabel(band.freq)} {t("eq:hz")}
             </span>
             <input
               aria-label={`band ${bandLabel(band.freq)} Hz`}
@@ -134,7 +136,7 @@ export default function EqualizerPanel() {
               className="w-12 text-xs tabular-nums text-neutral-400"
             >
               {(shownBands[i] ?? 0) > 0 ? "+" : ""}
-              {shownBands[i] ?? 0} dB
+              {shownBands[i] ?? 0} {t("eq:db")}
             </span>
           </li>
         ))}
@@ -147,7 +149,7 @@ export default function EqualizerPanel() {
           onClick={() => void onSaveDraft()}
           className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-40"
         >
-          บันทึกเป็น preset ของฉัน
+          {t("eq:saveAsPreset")}
         </button>
         <button
           data-testid="eq-reset"
@@ -157,12 +159,10 @@ export default function EqualizerPanel() {
           }}
           className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-900"
         >
-          รีเซ็ตเป็น Flat
+          {t("eq:resetFlat")}
         </button>
       </div>
-      <p className="text-xs text-neutral-500">
-        ลากแล้วได้ยินทันที — จะจำค่าไว้หลัง refresh ต้องบันทึกเป็น preset
-      </p>
+      <p className="text-xs text-neutral-500">{t("eq:hint")}</p>
     </section>
   );
 }

@@ -14,6 +14,7 @@ import {
   type VolumeChangedPayload,
 } from "@musicplayer/shared";
 import { getAudioEngine } from "../lib/audioEngine";
+import i18next from "../i18n";
 import { usePlayerStore, useQueueStore, useToastStore } from "../stores/playerStore";
 import { useEqStore } from "../stores/eqStore";
 
@@ -52,9 +53,7 @@ export function handleRealtimeEvent(
     }
     case RealtimeEvents.TrackException: {
       const ex = payload as unknown as TrackExceptionPayload;
-      useToastStore
-        .getState()
-        .show(ex.message || "เล่นเพลงนี้ไม่ได้ — ข้ามไปเพลงถัดไป");
+      useToastStore.getState().show(ex.message || i18next.t("toast:unplayable"));
       break;
     }
     case RealtimeEvents.QueueEnded:

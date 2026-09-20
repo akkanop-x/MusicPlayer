@@ -3,6 +3,7 @@
  * พร้อมปุ่ม play/add-to-queue — PlayerBar/QueuePanel อยู่ระดับ layout ไม่ unmount
  */
 import { useNavigate, useParams } from "react-router";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { tracksApi, queueApi } from "../api";
 import { getAudioEngine } from "../lib/audioEngine";
@@ -18,6 +19,7 @@ function fmtDuration(ms: number): string {
 
 export default function TrackPage() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const show = useToastStore((s) => s.show);
   const engine = getAudioEngine();
@@ -39,22 +41,24 @@ export default function TrackPage() {
           onClick={() => navigate(-1)}
           className="text-sm text-neutral-400 hover:text-neutral-200"
         >
-          ← กลับ
+          {t("common:back")}
         </button>
-        <h1 className="text-lg font-semibold">เพลง</h1>
+        <h1 className="text-lg font-semibold">{t("track:title")}</h1>
         <span className="w-10" />
       </header>
 
       <section className="mx-auto w-full max-w-2xl flex-1 px-6 pb-40">
-        {trackQuery.isPending && <p className="text-sm text-neutral-400">กำลังโหลด…</p>}
+        {trackQuery.isPending && (
+          <p className="text-sm text-neutral-400">{t("common:loading")}</p>
+        )}
         {trackQuery.isError && (
           <div className="space-y-3">
-            <p className="text-sm text-red-400">ไม่พบเพลงนี้ในระบบ</p>
+            <p className="text-sm text-red-400">{t("track:notFound")}</p>
             <button
               onClick={() => navigate("/")}
               className="rounded-lg bg-emerald-500 px-4 py-2 font-medium text-neutral-950 hover:bg-emerald-400"
             >
-              กลับไปค้นหา
+              {t("common:backToSearch")}
             </button>
           </div>
         )}
@@ -101,7 +105,7 @@ export default function TrackPage() {
                 }}
                 className="rounded-lg bg-emerald-500 px-5 py-2 font-medium text-neutral-950 hover:bg-emerald-400"
               >
-                ▶ เล่น
+                {t("track:play")}
               </button>
               <button
                 data-testid="btn-add-queue"
@@ -109,12 +113,12 @@ export default function TrackPage() {
                   void queueApi
                     .add([track.id])
                     .then(useQueueStore.getState().setQueueDto)
-                    .then(() => show("เพิ่มเข้าคิวแล้ว"))
+                    .then(() => show(t("track:added")))
                     .catch((err) => show(String((err as Error).message)));
                 }}
                 className="rounded-lg border border-neutral-700 px-5 py-2 text-sm text-neutral-200 hover:bg-neutral-900"
               >
-                ＋ เพิ่มเข้าคิว
+                {t("track:addToQueue")}
               </button>
             </div>
           </div>

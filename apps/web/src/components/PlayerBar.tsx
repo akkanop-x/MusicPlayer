@@ -1,9 +1,11 @@
 import type { TrackDTO } from "@musicplayer/shared";
+import { useTranslation } from "react-i18next";
 import { getAudioEngine } from "../lib/audioEngine";
 import {
   useIntentStore,
   usePlayerStore,
   useProgressStore,
+  useUiStore,
 } from "../stores/playerStore";
 
 function fmt(ms: number): string {
@@ -11,12 +13,14 @@ function fmt(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** PlayerBar หยาบ ๆ ตาม roadmap Phase 4 — ปุ่มครบ, seek bar, volume */
+/** PlayerBar — คำสั่งครบ + shuffle + ขยาย NowPlaying (frontend.md §1 player/) */
 export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }) {
+  const { t } = useTranslation();
   const engine = getAudioEngine();
-  const { state, track, volume, muted, repeatMode } = usePlayerStore();
+  const { state, track, volume, muted, repeatMode, shuffle } = usePlayerStore();
   const { positionMs, durationMs, scrubMs, setScrub } = useProgressStore();
   const pendingTrack = useIntentStore((s) => s.pendingTrack);
+  const setNowPlayingOpen = useUiStore((s) => s.setNowPlayingOpen);
 
   const shown: TrackDTO | null = track ?? pendingTrack;
   const isBusy = state === "LOADING" || state === "BUFFERING";
@@ -26,20 +30,21 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
   function togglePlay() {
     engine.ensureAudioGraph();
     if (state === "PLAYING" || state === "BUFFERING" || state === "LOADING") {
-      void engine.pause().catch(() => onToast?.("pause ไม่สำเร็จ"));
+      void engine.pause().catch(() => onToast?.(t("toast:pauseFailed")));
     } else if (state === "PAUSED") {
-      void engine.resume().catch(() => onToast?.("resume ไม่สำเร็จ"));
+      void engine.resume().catch(() => onToast?.(t("toast:resumeFailed")));
     } else if (shown) {
-      void engine.play(shown).catch(() => onToast?.("play ไม่สำเร็จ"));
+      void engine.play(shown).catch(() => onToast?.(t("toast:playFailed")));
     }
   }
 
   return (
     <footer
       data-testid="player-bar"
-      className="fixed inset-x-0 bottom-0 border-t border-neutral-800 bg-neutral-900/95 px-6 py-3 backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-900/95 px-4 py-3 backdrop-blur md:px-6"
     >
-      <div className="mx-auto flex max-w-4xl items-center gap-4">
+      <div className="mx-auto flex max-w-4xl items-center gap-2 md:gap-4">
+        {/* ซ้าย: track + ขยาย */}
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {shown?.artworkUrl ? (
             <img
@@ -52,17 +57,38 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
           )}
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">
-              {shown?.title ?? "ยังไม่ได้เล่นอะไร"}
+              {shown?.title ?? t("player:idle")}
             </p>
             <p className="truncate text-xs text-neutral-400">
-              {isBusy ? "กำลังโหลด…" : (shown?.artist ?? "")}
+              {isBusy ? t("player:loadingTrack") : (shown?.artist ?? "")}
             </p>
           </div>
+          {shown && (
+            <button
+              aria-label={t("player:expand")}
+              data-testid="btn-expand"
+              onClick={() => setNowPlayingOpen(true)}
+              className="hidden rounded-full p-2 text-neutral-300 hover:bg-neutral-800 sm:block"
+            >
+              ⤢
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* กลาง: controls */}
+        <div className="flex items-center gap-1 md:gap-2">
           <button
-            aria-label="previous"
+            aria-label={t("player:shuffleOff")}
+            data-testid="btn-shuffle"
+            onClick={() => void engine.setShuffle(!shuffle)}
+            className={`rounded-full p-2 text-sm ${
+              shuffle ? "text-emerald-400" : "text-neutral-300 hover:bg-neutral-800"
+            }`}
+          >
+            🔀
+          </button>
+          <button
+            aria-label={t("player:previous")}
             data-testid="btn-previous"
             onClick={() => void engine.previous()}
             className="rounded-full p-2 text-neutral-300 hover:bg-neutral-800"
@@ -70,7 +96,9 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
             ⏮
           </button>
           <button
-            aria-label={state === "PLAYING" || isBusy ? "pause" : "play"}
+            aria-label={
+              state === "PLAYING" || isBusy ? t("player:pause") : t("player:play")
+            }
             data-testid="btn-toggle"
             onClick={togglePlay}
             disabled={!shown && state === "IDLE"}
@@ -79,7 +107,7 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
             {state === "PLAYING" && !isBusy ? "⏸" : "▶"}
           </button>
           <button
-            aria-label="skip"
+            aria-label={t("player:skip")}
             data-testid="btn-skip"
             onClick={() => void engine.skip()}
             className="rounded-full p-2 text-neutral-300 hover:bg-neutral-800"
@@ -88,7 +116,8 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
           </button>
         </div>
 
-        <div className="flex flex-1 items-center gap-2">
+        {/* ขวา: seek + repeat + volume */}
+        <div className="hidden flex-1 items-center gap-2 lg:flex">
           <span
             data-testid="position"
             className="w-10 text-right text-xs text-neutral-400"
@@ -96,7 +125,7 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
             {fmt(position)}
           </span>
           <input
-            aria-label="seek"
+            aria-label={t("player:seek")}
             data-testid="seek-bar"
             type="range"
             min={0}
@@ -122,14 +151,16 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
         </div>
 
         <button
-          aria-label={`repeat ${repeatMode}`}
+          aria-label={t(
+            `player:repeat${repeatMode.charAt(0).toUpperCase()}${repeatMode.slice(1)}`,
+          )}
           data-testid="btn-repeat"
           onClick={() =>
             engine.setRepeat(
               repeatMode === "off" ? "one" : repeatMode === "one" ? "all" : "off",
             )
           }
-          className={`rounded-full px-2 py-1 text-xs ${
+          className={`hidden rounded-full px-2 py-1 text-xs sm:block ${
             repeatMode === "off"
               ? "text-neutral-400"
               : "bg-emerald-500/20 text-emerald-400"
@@ -139,14 +170,14 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
         </button>
 
         <input
-          aria-label="volume"
+          aria-label={t("player:volume")}
           data-testid="volume"
           type="range"
           min={0}
           max={100}
           value={muted ? 0 : volume}
           onChange={(e) => engine.setVolume(Number(e.target.value))}
-          className="h-1 w-20 accent-emerald-500"
+          className="hidden h-1 w-20 accent-emerald-500 sm:block"
         />
       </div>
     </footer>

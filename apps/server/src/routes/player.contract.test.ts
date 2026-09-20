@@ -225,7 +225,8 @@ describe("pause/resume/seek", () => {
       headers: authed,
       payload: { positionMs: 60_000 },
     });
-    expect(seek.json().state).toBe("BUFFERING");
+    // server ไม่มี media element — seek จบด้วย SEEKED ทันที → PLAYING (ไม่ค้าง BUFFERING)
+    expect(seek.json().state).toBe("PLAYING");
     expect(seek.json().positionMs).toBe(60_000);
 
     const beyond = await app.inject({

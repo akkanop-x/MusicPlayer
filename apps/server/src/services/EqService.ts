@@ -55,7 +55,7 @@ export interface EqService {
   getSettings(userId: string): Promise<UserSettingsDTO>;
   patchSettings(
     userId: string,
-    patch: { volume?: number; muted?: boolean; autoplay?: boolean },
+    patch: { volume?: number; muted?: boolean; autoplay?: boolean; locale?: string },
   ): Promise<UserSettingsDTO>;
 }
 

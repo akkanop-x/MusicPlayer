@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 import { authApi, hydrateSession } from "../api";
 import { useAuthStore } from "../stores/authStore";
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -46,11 +48,11 @@ export default function LoginPage() {
       >
         <h1 className="text-2xl font-semibold">MusicPlayer</h1>
         <p className="text-sm text-neutral-400">
-          {mode === "login" ? "เข้าสู่ระบบ" : "สมัครบัญชีใหม่"}
+          {mode === "login" ? t("auth:login") : t("auth:register")}
         </p>
         {mode === "register" && (
           <label className="block space-y-1">
-            <span className="text-sm">ชื่อที่แสดง</span>
+            <span className="text-sm">{t("auth:displayName")}</span>
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -59,7 +61,7 @@ export default function LoginPage() {
           </label>
         )}
         <label className="block space-y-1">
-          <span className="text-sm">Email</span>
+          <span className="text-sm">{t("auth:email")}</span>
           <input
             type="email"
             required
@@ -69,7 +71,7 @@ export default function LoginPage() {
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-sm">รหัสผ่าน</span>
+          <span className="text-sm">{t("auth:password")}</span>
           <input
             type="password"
             required
@@ -85,14 +87,18 @@ export default function LoginPage() {
           disabled={busy}
           className="w-full rounded-lg bg-emerald-500 py-2 font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
         >
-          {busy ? "กำลัง..." : mode === "login" ? "เข้าสู่ระบบ" : "สมัครบัญชี"}
+          {busy
+            ? t("auth:submitting")
+            : mode === "login"
+              ? t("auth:submitLogin")
+              : t("auth:submitRegister")}
         </button>
         <button
           type="button"
           onClick={() => setMode(mode === "login" ? "register" : "login")}
           className="w-full text-sm text-neutral-400 hover:text-neutral-200"
         >
-          {mode === "login" ? "ยังไม่มีบัญชี? สมัครเลย" : "มีบัญชีแล้ว? เข้าสู่ระบบ"}
+          {mode === "login" ? t("auth:toRegister") : t("auth:toLogin")}
         </button>
       </form>
     </main>

@@ -9,12 +9,22 @@ import {
   setRealtimeHandler,
 } from "./realtime/socketClient";
 import { useAuthStore } from "./stores/authStore";
-import { refreshEqFromServer } from "./stores/eqStore";
+import { usePlayerStore } from "./stores/playerStore";
+import { applyLocaleFromServer } from "./i18n";
+import {
+  initMediaSession,
+  updateMediaSessionMetadata,
+  updateMediaSessionPlaybackState,
+} from "./lib/mediaSession";
+import "./i18n";
+import AppShell from "./components/layout/AppShell";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
+import SearchPage from "./pages/SearchPage";
+import LibraryPage from "./pages/LibraryPage";
+import PlaylistPage from "./pages/PlaylistPage";
 import TrackPage from "./pages/TrackPage";
 import SettingsPage from "./pages/SettingsPage";
-import { useToastStore } from "./stores/playerStore";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -45,74 +55,65 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function Toast() {
-  const message = useToastStore((s) => s.message);
-  const hide = useToastStore((s) => s.hide);
-  useEffect(() => {
-    if (!message) return;
-    const t = setTimeout(hide, 4_000);
-    return () => clearTimeout(t);
-  }, [message, hide]);
-  if (!message) return null;
-  return (
-    <div
-      role="status"
-      data-testid="toast"
-      className="fixed bottom-24 left-1/2 -translate-x-1/2 rounded-lg bg-red-500/90 px-4 py-2 text-sm text-white shadow-lg"
-    >
-      {message}
-    </div>
-  );
-}
-
-export default function App() {
+function Shell() {
   // websocket.md — มี session แล้วเปิด socket (App เดียว ไม่ผูกกับ route → navigate ไม่หลุด);
   // token refresh → handshake ใหม่; logout/session หมด → ปิด
   const token = useAuthStore((s) => s.accessToken);
+  // Media Session (frontend.md §8.1) — metadata ตาม track / playbackState ตาม state
+  const track = usePlayerStore((s) => s.track);
+  const playerState = usePlayerStore((s) => s.state);
+
   useEffect(() => {
     setRealtimeHandler(handleRealtimeEvent);
+    initMediaSession();
     if (token) {
       connectRealtime();
-      // equalizer.md §5 — โหลด EQ ตั้งแต่ boot เพื่อให้เสียงแรกมี EQ ถูกต้อง
-      void refreshEqFromServer();
+      // boot: locale จาก user_settings (frontend.md §6.1) + EQ (equalizer.md §5)
+      void applyLocaleFromServer();
+      void (async () => {
+        const { refreshEqFromServer } = await import("./stores/eqStore");
+        await refreshEqFromServer();
+      })();
     } else {
       disconnectRealtime();
     }
   }, [token]);
+
+  useEffect(() => {
+    updateMediaSessionMetadata(track);
+  }, [track]);
+
+  useEffect(() => {
+    updateMediaSessionPlaybackState(playerState);
+  }, [playerState]);
 
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          {/* ทุกหน้าหลักอยู่ใต้ AppShell — PlayerBar layout-level (เสียงเล่นต่อข้ามหน้า) */}
           <Route
-            path="/"
             element={
               <RequireAuth>
-                <HomePage />
+                <AppShell />
               </RequireAuth>
             }
-          />
-          <Route
-            path="/track/:id"
-            element={
-              <RequireAuth>
-                <TrackPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <RequireAuth>
-                <SettingsPage />
-              </RequireAuth>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          >
+            <Route path="/" element={<HomePage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/library" element={<LibraryPage />} />
+            <Route path="/playlist/:id" element={<PlaylistPage />} />
+            <Route path="/track/:id" element={<TrackPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
         </Routes>
-        <Toast />
       </BrowserRouter>
     </QueryClientProvider>
   );
+}
+
+export default function App() {
+  return <Shell />;
 }

@@ -1,0 +1,137 @@
+{
+  "common": {
+    "back": "← กลับ",
+    "backToSearch": "กลับไปค้นหา",
+    "loading": "กำลังโหลด…",
+    "retry": "ลองใหม่",
+    "logout": "ออกจากระบบ",
+    "nav": {
+      "home": "หน้าแรก",
+      "search": "ค้นหา",
+      "library": "คลัง",
+      "settings": "ตั้งค่า"
+    }
+  },
+  "auth": {
+    "login": "เข้าสู่ระบบ",
+    "register": "สมัครบัญชีใหม่",
+    "displayName": "ชื่อที่แสดง",
+    "email": "Email",
+    "password": "รหัสผ่าน",
+    "submitting": "กำลัง...",
+    "submitLogin": "เข้าสู่ระบบ",
+    "submitRegister": "สมัครบัญชี",
+    "toRegister": "ยังไม่มีบัญชี? สมัครเลย",
+    "toLogin": "มีบัญชีแล้ว? เข้าสู่ระบบ"
+  },
+  "home": {
+    "greetingMorning": "สวัสดีตอนเช้า",
+    "greetingAfternoon": "สวัสดีตอนบ่าย",
+    "greetingEvening": "สวัสดีตอนเย็น",
+    "greetingNight": "ดึกแล้วนะ",
+    "searchCta": "ค้นหาเพลงจาก YouTube / YTMusic",
+    "searchCtaDesc": "ค้นแล้วกดเล่นได้ทันที",
+    "libraryCta": "คลังของคุณ",
+    "libraryCtaDesc": "Playlist / เพลงที่ชอบ / ประวัติ",
+    "settingsCta": "ตั้งค่า",
+    "settingsCtaDesc": "Equalizer / ภาษา / บัญชี",
+    "queueSummary": "คิวปัจจุบัน",
+    "queueUpcoming": "{{count}} เพลงในคิว",
+    "queueEmpty": "ยังไม่มีคิว — ค้นหาเพลงแล้วกดเพิ่มเข้าคิวได้เลย",
+    "emptyTitle": "ยังไม่มีอะไรเล่น",
+    "emptyDesc": "ค้นหาเพลงแรกของคุณเลย"
+  },
+  "search": {
+    "placeholder": "ค้นหาเพลงจาก YouTube / YTMusic…",
+    "searching": "กำลังค้นหา…",
+    "noResults": "ไม่พบผลลัพธ์ — ลองคำอื่นดูนะ",
+    "hint": "พิมพ์เพื่อค้นหาเพลง",
+    "degraded": "บางแหล่งค้นหาใช้ไม่ได้ชั่วคราว ({{sources}}) — แสดงเฉพาะผลที่หาได้",
+    "loadMore": "โหลดเพลงเพิ่มเติม",
+    "results": "ผลการค้นหา",
+    "addQueue": "＋ คิว",
+    "detail": "รายละเอียด",
+    "playAgain": "เล่นอีก",
+    "play": "▶ เล่น"
+  },
+  "library": {
+    "title": "คลังของคุณ",
+    "tabPlaylists": "Playlist",
+    "tabLiked": "เพลงที่ชอบ",
+    "tabHistory": "ประวัติฟัง",
+    "emptyPlaylistsTitle": "ยังไม่มี playlist",
+    "emptyPlaylistsDesc": "สร้าง playlist แรกของคุณได้เร็ว ๆ นี้",
+    "emptyLikedTitle": "ยังไม่มีเพลงที่ชอบ",
+    "emptyLikedDesc": "กดหัวใจที่เพลงเพื่อเก็บไว้ที่นี่",
+    "emptyHistoryTitle": "ยังไม่มีประวัติฟัง",
+    "emptyHistoryDesc": "เพลงที่คุณฟังจะมาปรากฏที่นี่",
+    "comingSoon": "ฟีเจอร์นี้กำลังมาใน phase ถัดไป"
+  },
+  "playlist": {
+    "notFoundTitle": "ไม่พบ playlist นี้",
+    "notFoundDesc": "Playlist ยังไม่พร้อมใช้งาน — รอ phase ถัดไป"
+  },
+  "track": {
+    "title": "เพลง",
+    "notFound": "ไม่พบเพลงนี้ในระบบ",
+    "play": "▶ เล่น",
+    "addToQueue": "＋ เพิ่มเข้าคิว",
+    "added": "เพิ่มเข้าคิวแล้ว"
+  },
+  "settings": {
+    "title": "ตั้งค่า",
+    "sectionLanguage": "ภาษา",
+    "languageDesc": "เลือกภาษาของหน้าจอ (เก็บไว้กับบัญชี — ทุกอุปกรณ์เปลี่ยนตาม)",
+    "languageTh": "ไทย",
+    "languageEn": "English",
+    "sectionAccount": "บัญชี",
+    "loggedInAs": "ล็อกอินเป็น",
+    "sectionEq": "Equalizer"
+  },
+  "eq": {
+    "preset": "Preset",
+    "noEq": "ไม่ใช้ EQ (Flat)",
+    "mine": "(ของฉัน)",
+    "deletePreset": "ลบ preset นี้",
+    "saveAsPreset": "บันทึกเป็น preset ของฉัน",
+    "resetFlat": "รีเซ็ตเป็น Flat",
+    "hint": "ลากแล้วได้ยินทันที — จะจำค่าไว้หลัง refresh ต้องบันทึกเป็น preset",
+    "namePrompt": "ชื่อ preset ของคุณ:",
+    "db": "dB",
+    "hz": "Hz"
+  },
+  "player": {
+    "previous": "previous",
+    "play": "play",
+    "pause": "pause",
+    "skip": "skip",
+    "repeatOff": "repeat off",
+    "repeatOne": "repeat one",
+    "repeatAll": "repeat all",
+    "shuffleOn": "shuffle on",
+    "shuffleOff": "shuffle off",
+    "expand": "ขยายหน้าเล่นเดิม",
+    "collapse": "ย่อ",
+    "volume": "volume",
+    "seek": "seek",
+    "idle": "ยังไม่ได้เล่นอะไร",
+    "loadingTrack": "กำลังโหลด…"
+  },
+  "queue": {
+    "title": "กำลังเล่น / คิวถัดไป",
+    "clear": "ล้างคิว",
+    "empty": "คิวว่าง — เพิ่มเพลงจากผลค้นหา",
+    "historyTitle": "เพลงที่เล่นไปแล้ว",
+    "remove": "เอาออกจากคิว",
+    "restore": "เล่นซ้ำจากประวัติ"
+  },
+  "nowPlaying": {
+    "upNext": "คิวถัดไป"
+  },
+  "toast": {
+    "playFailed": "เล่นเพลงไม่สำเร็จ — ลองเพลงอื่นดูนะ",
+    "pauseFailed": "pause ไม่สำเร็จ",
+    "resumeFailed": "resume ไม่สำเร็จ",
+    "unplayable": "เล่นเพลงนี้ไม่ได้ — ข้ามไปเพลงถัดไป"
+  }
+}

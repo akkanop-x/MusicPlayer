@@ -1,4 +1,5 @@
 import { getAudioEngine } from "../lib/audioEngine";
+import { useTranslation } from "react-i18next";
 import { queueApi } from "../api";
 import { useQueueStore, useToastStore } from "../stores/playerStore";
 
@@ -17,6 +18,7 @@ function useQueueCommand() {
 
 /** QueuePanel — queue.md: upcoming (ลำดับแสดงผล) + history (ใหม่→เก่า) */
 export default function QueuePanel() {
+  const { t } = useTranslation();
   const engine = getAudioEngine();
   const { current, upcoming, history } = useQueueStore();
   const run = useQueueCommand();
@@ -29,14 +31,14 @@ export default function QueuePanel() {
       <div>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
-            กำลังเล่น / คิวถัดไป ({upcoming.length})
+            {t("queue:title")} ({upcoming.length})
           </h2>
           <button
             data-testid="queue-clear"
             onClick={() => run(queueApi.clear("upcoming"))}
             className="text-xs text-neutral-500 hover:text-neutral-300"
           >
-            ล้างคิว
+            {t("queue:clear")}
           </button>
         </div>
         {current && (

@@ -62,5 +62,6 @@ export function useSearch(query: string) {
     /** มีหน้าถัดไปให้โหลด (หน้าล่าสุดได้เต็ม limit) */
     hasMore: query_.hasNextPage,
     loadMore: () => void query_.fetchNextPage(),
+    refetch: () => void query_.refetch(),
   };
 }

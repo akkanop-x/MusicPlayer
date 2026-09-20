@@ -13,6 +13,8 @@ coverage/
 .env.*.local
 
 # logs
+test-results/
+playwright-report/
 *.log
 
 # OS junk (Windows/macOS)

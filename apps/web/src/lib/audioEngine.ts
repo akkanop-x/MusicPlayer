@@ -21,6 +21,7 @@ import {
   type TrackStartedPayload,
 } from "@musicplayer/shared";
 import { playerApi, queueApi } from "../api";
+import i18next from "../i18n";
 import { createEqFilters } from "./eqGraph";
 import {
   isRealtimeConnected,
@@ -119,6 +120,7 @@ export class AudioEngine {
       );
     });
     audio.addEventListener("canplay", () => {
+      if (!audio.src) return; // element ว่าง (เพิ่ง reload) — ห้ามขับ state machine
       // #3: มี intent pause ค้างจากตอน LOADING → หยุดทันทีที่พร้อม
       if (this.ctx.pauseWhenReady) {
         audio.pause();
@@ -133,6 +135,7 @@ export class AudioEngine {
       stores().player.patchState({ state: this.ctx.state });
     });
     audio.addEventListener("playing", () => {
+      if (!audio.src) return;
       this.ctx = transition(this.ctx, { type: "PLAYING" });
       stores().player.patchState({ state: this.ctx.state });
     });
@@ -148,6 +151,17 @@ export class AudioEngine {
       });
     });
     audio.addEventListener("waiting", () => {
+      if (!audio.src) return; // จาก E2E J6: empty element ยังยิง waiting → BUFFERING ปลอม
+      const w = window as unknown as Record<string, unknown>;
+      w.__waitingDbg = [
+        ...((w.__waitingDbg as
+          Array<{ src: string; ctx: string; track: string | null }> | undefined) ?? []),
+        {
+          src: audio.src.slice(-25),
+          ctx: this.ctx.state,
+          track: usePlayerStore.getState().track?.title ?? null,
+        },
+      ];
       this.ctx = transition(this.ctx, {
         type: "WAITING",
         positionMs: this.currentPositionMs(),
@@ -275,14 +289,38 @@ export class AudioEngine {
 
   async resume(): Promise<void> {
     this.ensureAudioGraph();
-    const dto = await playerApi.resume().catch((error) => {
+    const dto = await playerApi.resume().catch(async (error) => {
+      // server restore snapshot เป็น PLAYING อยู่แล้ว → resume ตอบ NOT_PAUSED (409) แต่
+      // client หลัง refresh ยังไม่มี src — ดึง state จริงมาโหลดสตรีมใหม่เอง (E2E J10)
+      if (!this.audio.src) {
+        const state = await playerApi.getState().catch(() => null);
+        if (state?.track) return state;
+      }
       useToastStore.getState().show(String((error as Error).message));
       return null;
     });
     if (!dto) return;
     usePlayerStore.getState().setStateDto(dto);
     this.ctx = transition(this.ctx, { type: "PLAYING" });
+    // หลัง refresh src หาย (element ใหม่) — โหลดสตรีมใหม่แล้ว jump ไป position เดิม
+    // (E2E J10 เจอบั๊กนี้: เคยแค่ audio.play() บน element ว่าง → เงียบตลอด)
+    if (!this.audio.src && dto.track) {
+      this.startStream(dto.track, dto);
+      this.seekWhenReady(dto.positionMs);
+      return;
+    }
     void this.audio.play().catch(() => undefined);
+  }
+
+  /** ตั้ง currentTime หลังโหลด src — browser จะ seek เมื่อ metadata พร้อม */
+  private seekWhenReady(positionMs: number): void {
+    if (positionMs > 0 && Number.isFinite(positionMs)) {
+      try {
+        this.audio.currentTime = positionMs / 1000;
+      } catch {
+        // ยังไม่มี metadata — เริ่มที่ 0 แทน (edge หายาก)
+      }
+    }
   }
 
   /** player.md §8: UI จะรอ event `seeked` — ที่นี่แค่ตั้ง currentTime + เรียก server */
@@ -374,6 +412,19 @@ export class AudioEngine {
       .catch(() => undefined);
   }
 
+  /** PATCH /player/shuffle — ตอบ QueueStateDTO (shuffle flag mirror ผ่าน optimistic + getState) */
+  async setShuffle(enabled: boolean): Promise<void> {
+    usePlayerStore.getState().patchState({ shuffle: enabled });
+    try {
+      const queue = await playerApi.setShuffle(enabled);
+      useQueueStore.getState().setQueueDto(queue);
+      const dto = await playerApi.getState();
+      usePlayerStore.getState().setStateDto(dto);
+    } catch (error) {
+      useToastStore.getState().show(String((error as Error).message));
+    }
+  }
+
   // ---------- EQ (equalizer.md §3/§5) ----------
   /**
    * apply bands ที่ audio graph ทันที — null = Flat (zeros)
@@ -422,14 +473,18 @@ export class AudioEngine {
     this.ctx = transition(this.ctx, { type: "STOP" });
     usePlayerStore.getState().patchState({ state: "IDLE" });
     useIntentStore.getState().setPendingTrack(null);
-    useToastStore.getState().show("เล่นเพลงไม่สำเร็จ — ลองเพลงอื่นดูนะ");
+    useToastStore.getState().show(i18next.t("toast:playFailed"));
   }
 
   /** ดึง state จาก server ตอน boot (player.md #7 — refresh แล้วเห็นสถานะเดิมเป็นอย่างน้อย) */
   async syncFromServer(): Promise<void> {
     try {
       const dto = await playerApi.getState();
-      usePlayerStore.getState().setStateDto(dto);
+      // restore เป็น PLAYING แบบ optimistic แต่ browser ห้าม autoplay ตอนโหลดหน้า —
+      // client จึงเล่นจริงไม่ได้: mirror เป็น PAUSED (กดเล่นต่อ = resume โหลด src ใหม่)
+      const honest =
+        dto.state === "PLAYING" ? { ...dto, state: "PAUSED" as const } : dto;
+      usePlayerStore.getState().setStateDto(honest);
       await this.refreshQueue();
     } catch {
       // ยังไม่ล็อกอิน — ไม่เป็นไร
@@ -455,7 +510,19 @@ export class AudioEngine {
       positionMs: p.positionMs,
     });
     if (p.state === "PLAYING") {
-      // เพลงใหม่ → รอ TRACK_STARTED จัดการโหลด (มาพร้อมกันเสมอ)
+      // เพลงใหม่ → รอ TRACK_STARTED จัดการโหลด (มาพร้อมกันเสมอ);
+      // แต่ถ้า element ยังไม่มี src (เพิ่ง refresh — autoplay policy บล็อกการเล่นเอง)
+      // server คิดว่าเล่นอยู่ไม่ได้จริง → mirror เป็น PAUSED พร้อม track/position
+      // (กดเล่น = resume ซึ่งโหลด src ใหม่แล้ว jump ไป position เดิม)
+      if (p.track && !this.audio.src) {
+        store.setStateDto({
+          ...store,
+          state: "PAUSED",
+          track: p.track,
+          positionMs: p.positionMs,
+        });
+        return;
+      }
       if (p.track && this.currentTrackId() !== p.track.id) return;
       if (this.audio.src && this.audio.paused) {
         this.ctx = transition(this.ctx, { type: "PLAYING" });

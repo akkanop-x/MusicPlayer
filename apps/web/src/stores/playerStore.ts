@@ -7,8 +7,10 @@ import type { PlayerStateDTO, QueueStateDTO, TrackDTO } from "@musicplayer/share
  */
 interface PlayerStore extends PlayerStateDTO {
   setStateDto: (dto: PlayerStateDTO) => void;
-  /** ใช้เมื่อ media event บอกสถานะละเอียดกว่า server (เช่น BUFFERING จริง) */
-  patchState: (patch: Partial<Pick<PlayerStateDTO, "state" | "positionMs">>) => void;
+  /** ใช้เมื่อ media event บอกสถานะละเอียดกว่า server (เช่น BUFFERING จริง) — shuffle เป็น optimistic */
+  patchState: (
+    patch: Partial<Pick<PlayerStateDTO, "state" | "positionMs" | "shuffle">>,
+  ) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>((set) => ({
@@ -77,4 +79,15 @@ export const useQueueStore = create<QueueStore>((set) => ({
   history: [],
   version: 0,
   setQueueDto: (dto) => set(dto),
+}));
+
+/** UI state — frontend.md §3.6 (ไม่ sync backend) */
+interface UiStore {
+  isNowPlayingOpen: boolean;
+  setNowPlayingOpen: (open: boolean) => void;
+}
+
+export const useUiStore = create<UiStore>((set) => ({
+  isNowPlayingOpen: false,
+  setNowPlayingOpen: (isNowPlayingOpen) => set({ isNowPlayingOpen }),
 }));
