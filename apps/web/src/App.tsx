@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { hydrateSession } from "./api";
 import { handleRealtimeEvent } from "./realtime/handlers";
 import {
@@ -18,6 +18,7 @@ import {
 } from "./lib/mediaSession";
 import "./i18n";
 import AppShell from "./components/layout/AppShell";
+import { queryClient } from "./lib/queryClient";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import SearchPage from "./pages/SearchPage";
@@ -25,10 +26,6 @@ import LibraryPage from "./pages/LibraryPage";
 import PlaylistPage from "./pages/PlaylistPage";
 import TrackPage from "./pages/TrackPage";
 import SettingsPage from "./pages/SettingsPage";
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
-});
 
 /** guard ให้หน้าหลักใช้ได้เมื่อมี access token (หรือ refresh สำเร็จ) */
 function RequireAuth({ children }: { children: React.ReactNode }) {

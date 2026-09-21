@@ -246,6 +246,37 @@ export class AudioEngine {
   }
 
   /**
+   * เล่นทั้ง playlist ตามลำดับ (api.md #20) — ล้าง queue → เติม playlist → skip เริ่มเพลงแรก
+   * ใช้ startStream เท่านั้น (ห้าม /player/play ซ้ำ — server จะล้าง upcoming ที่เพิ่งเติม)
+   */
+  async playPlaylist(playlistId: string): Promise<void> {
+    this.ensureAudioGraph();
+    const seq = ++this.playSeq;
+    this.teardownStream();
+    try {
+      await queueApi.clear("all");
+      const queue = await queueApi.addToPlaylist(playlistId);
+      if (seq !== this.playSeq) return;
+      useQueueStore.getState().setQueueDto(queue);
+      if (!queue.upcoming[0]) {
+        useToastStore.getState().show(i18next.t("playlist:empty"));
+        return;
+      }
+      const started = await playerApi.skip();
+      if (seq !== this.playSeq) return;
+      useQueueStore.getState().setQueueDto(started);
+      const current = started.current?.track ?? queue.upcoming[0].track;
+      useIntentStore.getState().setPendingTrack(current);
+      usePlayerStore.getState().patchState({ state: "PLAYING" });
+      this.startStream(current, { ...usePlayerStore.getState(), state: "PLAYING" });
+    } catch (error) {
+      if (seq === this.playSeq) {
+        useToastStore.getState().show(String((error as Error).message));
+      }
+    }
+  }
+
+  /**
    * โหลดเสียงของ track ที่ server ตั้งเป็น current แล้ว (skip/previous/advance ผ่าน
    * /player/skip — **ห้าม** ยิง /player/play ซ้ำ ไม่งั้น server จะ push history ซ้ำ
    * และล้าง upcoming — บั๊กจริงตอน smoke Phase 5)

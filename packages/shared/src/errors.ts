@@ -19,6 +19,7 @@ export const ERROR_CODES = [
   "NO_PREVIOUS",
   "ITEM_IS_CURRENT",
   "EQ_PRESET_NAME_TAKEN",
+  "NAME_TAKEN",
   "INTERNAL",
 ] as const;
 
@@ -59,5 +60,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   NO_PREVIOUS: 409,
   ITEM_IS_CURRENT: 409,
   EQ_PRESET_NAME_TAKEN: 409,
+  /** playlist ชื่อซ้ำ (api.md §7 #27) — Phase 10 */
+  NAME_TAKEN: 409,
   INTERNAL: 500,
 };

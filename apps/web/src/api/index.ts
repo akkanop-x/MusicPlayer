@@ -1,5 +1,8 @@
 import type {
   EqPresetDTO,
+  HistoryPageDTO,
+  LikesPageDTO,
+  PlaylistDTO,
   PlayerStateDTO,
   QueueStateDTO,
   SearchResponseDTO,
@@ -67,6 +70,9 @@ export const queueApi = {
   getQueue: () => api<QueueStateDTO>("/queue"),
   add: (trackIds: string[]) =>
     apiJson<QueueStateDTO>("POST", "/queue/tracks", { trackIds }),
+  /** เพิ่มทั้ง playlist ตามลำดับ (api.md #20) — ใช้โดย audioEngine.playPlaylist */
+  addToPlaylist: (playlistId: string) =>
+    apiJson<QueueStateDTO>("POST", "/queue/tracks", { playlistId }),
   addNext: (trackIds: string[]) =>
     apiJson<QueueStateDTO>("POST", "/queue/tracks/next", { trackIds }),
   move: (itemId: string, toPosition: number) =>
@@ -97,6 +103,56 @@ export const eqApi = {
   deletePreset: (id: string) => api<void>(`/eq/presets/${id}`, { method: "DELETE" }),
   setActive: (presetId: string | null) =>
     apiJson<UserSettingsDTO>("PUT", "/eq/active", { presetId }),
+};
+
+/** Phase 10 — Playlists (api.md §7 #26–33) */
+export const playlistsApi = {
+  list: () => api<{ playlists: PlaylistDTO[] }>("/playlists"),
+  get: (id: string) => api<PlaylistDTO>(`/playlists/${id}`),
+  create: (name: string, description?: string) =>
+    apiJson<PlaylistDTO>("POST", "/playlists", { name, description }),
+  update: (id: string, patch: { name?: string; description?: string | null }) =>
+    apiJson<PlaylistDTO>("PATCH", `/playlists/${id}`, patch),
+  remove: (id: string) => api<void>(`/playlists/${id}`, { method: "DELETE" }),
+  addTracks: (id: string, trackIds: string[], position?: number) =>
+    apiJson<PlaylistDTO>("POST", `/playlists/${id}/tracks`, {
+      trackIds,
+      ...(position !== undefined ? { position } : {}),
+    }),
+  removeTracks: (id: string, itemIds: string[]) =>
+    apiJson<PlaylistDTO>("DELETE", `/playlists/${id}/tracks`, { itemIds }),
+  reorder: (id: string, orderedItemIds: string[]) =>
+    apiJson<PlaylistDTO>("PATCH", `/playlists/${id}/tracks/order`, { orderedItemIds }),
+};
+
+/** Phase 10 — Likes (api.md §8 #34–36) — PUT/DELETE idempotent */
+export const likesApi = {
+  list: (options: { limit?: number; cursor?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+    if (options.cursor) params.set("cursor", options.cursor);
+    const qs = params.toString();
+    return api<LikesPageDTO>(`/likes${qs ? `?${qs}` : ""}`);
+  },
+  like: (trackId: string) =>
+    api<{ trackId: string; liked: boolean }>(`/tracks/${trackId}/like`, {
+      method: "PUT",
+    }),
+  unlike: (trackId: string) =>
+    api<{ trackId: string; liked: boolean }>(`/tracks/${trackId}/like`, {
+      method: "DELETE",
+    }),
+};
+
+/** Phase 10 — History (api.md §9 #37) — เขียนโดย backend ไม่มี POST */
+export const historyApi = {
+  list: (options: { limit?: number; before?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+    if (options.before) params.set("before", options.before);
+    const qs = params.toString();
+    return api<HistoryPageDTO>(`/history${qs ? `?${qs}` : ""}`);
+  },
 };
 
 /** ฟื้นเซสชันตอนโหลดหน้า — ลอง refresh เงียบ ๆ แล้วดึง /me */

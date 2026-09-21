@@ -81,6 +81,14 @@ export interface PlayerDeps {
   loadQueue(userId: string): Promise<QueueSnapshot | null>;
   /** persist queue หลังทุก mutation (fail-soft: พังแล้ว in-memory ยังตอบได้) */
   saveQueue(userId: string, snapshot: QueueSnapshot): Promise<void>;
+  /**
+   * Phase 10 — listening_history (queue.md §9): เรียกตอนเพลงจบ ("completed") หรือ
+   * ถูกแทน/skip ("skip") — HistoryService.record; ไม่ส่ง = ไม่บันทึก history
+   */
+  onPlaybackEnded?: (
+    userId: string,
+    input: { track: TrackDTO; positionMs: number; reason: "completed" | "skip" },
+  ) => void;
   /** websocket.md §3 — emit ไปยังทุก connection ของ user (RealtimeHub; ไม่ส่ง = ไม่มี realtime) */
   broadcaster?: Broadcaster;
 }
@@ -121,6 +129,24 @@ export function createPlayerService(deps: PlayerDeps) {
   function nextOriginalPosition(user: UserPlayer): number {
     user.originalPosition += 1;
     return user.originalPosition;
+  }
+
+  /**
+   * listening_history (queue.md §9) — เรียกก่อน queue ถูก mutate (ต้องมี current อยู่);
+   * completed → ใช้ duration เต็ม (ถ้ารู้), skip → ใช้ position ล่าสุดจาก POSITION_SYNC
+   */
+  function recordPlaybackEnd(
+    user: UserPlayer,
+    userId: string,
+    reason: "completed" | "skip",
+  ): void {
+    const track = user.queue.current?.track;
+    if (!track || !deps.onPlaybackEnded) return;
+    const positionMs =
+      reason === "completed" && user.ctx.durationMs !== null
+        ? user.ctx.durationMs
+        : user.ctx.positionMs;
+    void deps.onPlaybackEnded(userId, { track, positionMs, reason });
   }
 
   async function fetchTrack(trackId: string): Promise<TrackDTO> {
@@ -310,6 +336,8 @@ export function createPlayerService(deps: PlayerDeps) {
   async function play(userId: string, trackId: string): Promise<PlayerStateDTO> {
     const user = await getUser(userId);
     const track = await fetchTrack(trackId);
+    // เพลงเดิมถูกแทนกลางคัน → บันทึก history เป็น skip ณ ตำแหน่งล่าสุด
+    if (user.queue.current) recordPlaybackEnd(user, userId, "skip");
     playNow(user.queue, makeQueueItem(track, nextOriginalPosition(user)));
     user.version += 1;
     optimisticPlay(user, track);
@@ -407,6 +435,7 @@ export function createPlayerService(deps: PlayerDeps) {
     if (!user.queue.current && user.queue.upcoming.length === 0) {
       throw new PlayerError("Queue is empty", "NO_NEXT");
     }
+    if (user.queue.current) recordPlaybackEnd(user, userId, "skip");
     const played = queueAdvance(user.queue, reason, user.settings!.repeatMode);
     if (!played) throw new PlayerError("No next track in queue", "NO_NEXT");
     user.version += 1;
@@ -640,6 +669,7 @@ export function createPlayerService(deps: PlayerDeps) {
   ): Promise<{ ended: boolean }> {
     const user = await getUser(userId);
     if (user.queue.current?.track.id !== trackId) return { ended: false };
+    recordPlaybackEnd(user, userId, "completed");
     const played = queueAdvance(user.queue, "completed", user.settings!.repeatMode);
     user.lastSync = null;
     if (!played) {
@@ -669,6 +699,7 @@ export function createPlayerService(deps: PlayerDeps) {
     user.stalls.push(now);
     if (user.stalls.length < STALL_THRESHOLD) return { exception: false };
     user.stalls = [];
+    recordPlaybackEnd(user, userId, "skip");
     const current = itemDto(user);
     emit(userId, RealtimeEvents.TrackException, {
       item: current,

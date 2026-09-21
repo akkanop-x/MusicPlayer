@@ -1,4 +1,4 @@
-import { apiError, ERROR_STATUS } from "@musicplayer/shared";
+import { apiError, ERROR_STATUS, type TrackDTO } from "@musicplayer/shared";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
@@ -25,6 +25,8 @@ export interface SearchRoutesDeps {
     q: string,
     options?: { source?: SearchSource; limit?: number; offset?: number },
   ) => Promise<SearchResult>;
+  /** Phase 10 — เติม isLiked ให้ผลลัพธ์ (database.md: isLiked เติมตอนล็อกอิน); ไม่ส่ง = false เสมอ */
+  decorateLiked?: (userId: string, tracks: TrackDTO[]) => Promise<TrackDTO[]>;
 }
 
 export const searchRoutes: FastifyPluginAsync<SearchRoutesDeps> = async (app, deps) => {
@@ -54,7 +56,11 @@ export const searchRoutes: FastifyPluginAsync<SearchRoutesDeps> = async (app, de
 
     const { q, limit, offset, source } = parsed.data;
     try {
-      return await deps.search(q, { source, limit, offset });
+      const result = await deps.search(q, { source, limit, offset });
+      if (deps.decorateLiked) {
+        return { ...result, tracks: await deps.decorateLiked(userId, result.tracks) };
+      }
+      return result;
     } catch (error) {
       if (error instanceof LavalinkError) {
         app.log.error(error, "search upstream failed");

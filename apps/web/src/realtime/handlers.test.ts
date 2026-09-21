@@ -3,6 +3,7 @@ import { RealtimeEvents } from "@musicplayer/shared";
 import { usePlayerStore, useQueueStore, useToastStore } from "../stores/playerStore";
 import { _resetEqStoreForTests, useEqStore } from "../stores/eqStore";
 import { _resetRealtimeForTests, handleRealtimeEvent } from "./handlers";
+import { queryClient } from "../lib/queryClient";
 
 const { engineCalls, fakeEngine } = vi.hoisted(() => {
   const engineCalls: Array<{ fn: string; arg: unknown }> = [];
@@ -45,6 +46,7 @@ beforeEach(() => {
   useQueueStore.setState({ current: null, upcoming: [], history: [], version: 0 });
   usePlayerStore.setState({ ...usePlayerStore.getInitialState() });
   useToastStore.setState({ message: null });
+  queryClient.clear();
 });
 
 describe("realtime handlers — version gate (websocket.md §2)", () => {
@@ -149,5 +151,23 @@ describe("realtime handlers — dispatch (websocket.md §3)", () => {
     expect(eq.draftBands).toBeNull(); // draft ของ tab นี้ถูกแทนด้วยค่า remote
     expect(engineCalls[0]!.fn).toBe("applyEq");
     expect(engineCalls[0]!.arg).toEqual([8, 6, 4, 2, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it("LIKES_CHANGED → อัปเดต likes ids cache (websocket.md §3)", () => {
+    handleRealtimeEvent(RealtimeEvents.LikesChanged, {
+      trackId: "11111111-1111-4111-8111-111111111111",
+      liked: true,
+      version: 4,
+    });
+    const liked = queryClient.getQueryData<Set<string>>(["likes", "ids"]);
+    expect(liked?.has("11111111-1111-4111-8111-111111111111")).toBe(true);
+
+    handleRealtimeEvent(RealtimeEvents.LikesChanged, {
+      trackId: "11111111-1111-4111-8111-111111111111",
+      liked: false,
+      version: 5,
+    });
+    const after = queryClient.getQueryData<Set<string>>(["likes", "ids"]);
+    expect(after?.has("11111111-1111-4111-8111-111111111111")).toBe(false);
   });
 });

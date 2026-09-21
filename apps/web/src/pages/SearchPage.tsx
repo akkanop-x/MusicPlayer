@@ -1,4 +1,4 @@
-/** SearchPage — ย้ายจาก HomePage เดิม: debounce/pagination เดิม + VirtualList + states ครบ */
+/** SearchPage — debounce/pagination + VirtualList + states ครบ + like/เพิ่มใน playlist (Phase 10) */
 import { useState } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,8 @@ import { getAudioEngine } from "../lib/audioEngine";
 import { queueApi } from "../api";
 import { useQueueStore, useToastStore } from "../stores/playerStore";
 import { VirtualList } from "../components/ui/VirtualList";
+import LikeButton from "../components/LikeButton";
+import AddToPlaylistDialog from "../components/AddToPlaylistDialog";
 import Spinner from "../components/ui/Spinner";
 import EmptyState from "../components/ui/EmptyState";
 import ErrorState from "../components/ui/ErrorState";
@@ -15,6 +17,7 @@ import ErrorState from "../components/ui/ErrorState";
 export default function SearchPage() {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
+  const [dialogTrackId, setDialogTrackId] = useState<string | null>(null);
   const show = useToastStore((s) => s.show);
   const engine = getAudioEngine();
   const search = useSearch(query);
@@ -124,6 +127,18 @@ export default function SearchPage() {
                     )}
                   </span>
                 </button>
+                <LikeButton trackId={track.id} />
+                <button
+                  aria-label={`${t("playlist:addTo")} ${track.title}`}
+                  data-testid={`add-playlist-${track.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDialogTrackId(track.id);
+                  }}
+                  className="rounded-full px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+                >
+                  + 📁
+                </button>
                 <Link
                   to={`/track/${track.id}`}
                   aria-label={`${t("search:detail")} ${track.title}`}
@@ -151,6 +166,12 @@ export default function SearchPage() {
           />
         </section>
       )}
+
+      <AddToPlaylistDialog
+        trackIds={dialogTrackId ? [dialogTrackId] : []}
+        open={dialogTrackId !== null}
+        onClose={() => setDialogTrackId(null)}
+      />
 
       {search.hasMore && !search.isFetching && (
         <button

@@ -10,7 +10,10 @@
       "search": "ค้นหา",
       "library": "คลัง",
       "settings": "ตั้งค่า"
-    }
+    },
+    "cancel": "ยกเลิก",
+    "save": "บันทึก",
+    "play": "เล่น"
   },
   "auth": {
     "login": "เข้าสู่ระบบ",
@@ -65,11 +68,29 @@
     "emptyLikedDesc": "กดหัวใจที่เพลงเพื่อเก็บไว้ที่นี่",
     "emptyHistoryTitle": "ยังไม่มีประวัติฟัง",
     "emptyHistoryDesc": "เพลงที่คุณฟังจะมาปรากฏที่นี่",
-    "comingSoon": "ฟีเจอร์นี้กำลังมาใน phase ถัดไป"
+    "comingSoon": "ฟีเจอร์นี้กำลังมาใน phase ถัดไป",
+    "createPlaylist": "สร้าง playlist"
   },
   "playlist": {
     "notFoundTitle": "ไม่พบ playlist นี้",
-    "notFoundDesc": "Playlist ยังไม่พร้อมใช้งาน — รอ phase ถัดไป"
+    "notFoundDesc": "Playlist ยังไม่พร้อมใช้งาน — รอ phase ถัดไป",
+    "like": "เพิ่มในเพลงที่ชอบ",
+    "unlike": "เอาออกจากเพลงที่ชอบ",
+    "addTo": "เพิ่มใน playlist",
+    "addToTitle": "เพิ่ม {{count}} เพลงใน playlist",
+    "noPlaylists": "ยังไม่มี playlist — สร้างใหม่ด้านล่าง",
+    "newNamePlaceholder": "ชื่อ playlist ใหม่",
+    "createAdd": "สร้าง + เพิ่ม",
+    "addedTo": "เพิ่มใน “{{name}}” แล้ว",
+    "playAll": "เล่นทั้งหมด",
+    "rename": "เปลี่ยนชื่อ playlist",
+    "moveUp": "ย้ายขึ้น",
+    "moveDown": "ย้ายลง",
+    "removeTrack": "เอาเพลงออกจาก playlist",
+    "emptyTitle": "ยังไม่มีเพลงใน playlist นี้",
+    "emptyDesc": "ค้นหาเพลงแล้วกด “+ 📁” เพื่อเพิ่มเข้า playlist",
+    "empty": "Playlist นี้ยังไม่มีเพลง",
+    "trackCount": "{{count}} เพลง"
   },
   "track": {
     "title": "เพลง",
@@ -133,5 +154,11 @@
     "pauseFailed": "pause ไม่สำเร็จ",
     "resumeFailed": "resume ไม่สำเร็จ",
     "unplayable": "เล่นเพลงนี้ไม่ได้ — ข้ามไปเพลงถัดไป"
+  },
+  "history": {
+    "today": "วันนี้",
+    "yesterday": "เมื่อวาน",
+    "skipped": "ข้าม",
+    "completed": "ฟังจบ"
   }
 }

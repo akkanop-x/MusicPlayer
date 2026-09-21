@@ -1,26 +1,34 @@
 /**
  * AppShell — frontend.md §5: nav ครบ 4 หน้า + navigate ได้ (PlayerBar อยู่ layout-level)
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router";
 import AppShell from "./AppShell";
 import LibraryPage from "../../pages/LibraryPage";
 import HomePage from "../../pages/HomePage";
+import { stubLibraryFetch, withQueryClient } from "../../test/libraryHelpers";
 import "../../i18n";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("AppShell", () => {
   // AppShell ใช้ <Outlet> — routes ซ้อนอยู่ใต้ shell เหมือนใน App.tsx
   function renderShell(initial: string) {
+    stubLibraryFetch();
     return render(
-      <MemoryRouter initialEntries={[initial]}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/library" element={<LibraryPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
+      withQueryClient(
+        <MemoryRouter initialEntries={[initial]}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/library" element={<LibraryPage />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>,
+      ),
     );
   }
 
@@ -32,10 +40,10 @@ describe("AppShell", () => {
     expect(screen.getByTestId("greeting")).toBeTruthy();
   });
 
-  it("คลิก nav ไป Library แล้วเห็น tabs", () => {
+  it("คลิก nav ไป Library แล้วเห็น tabs", async () => {
     renderShell("/");
     fireEvent.click(screen.getAllByTestId("nav-library")[0]!);
     expect(screen.getByTestId("library-tab-playlists")).toBeTruthy();
-    expect(screen.getByTestId("library-empty-playlists")).toBeTruthy();
+    expect(await screen.findByTestId("library-empty-playlists")).toBeTruthy();
   });
 });

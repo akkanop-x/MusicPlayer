@@ -6,6 +6,7 @@
 import {
   RealtimeEvents,
   type EqChangedPayload,
+  type LikesChangedPayload,
   type PlayerStateChangedPayload,
   type PositionUpdatedPayload,
   type QueueStateDTO,
@@ -17,6 +18,8 @@ import { getAudioEngine } from "../lib/audioEngine";
 import i18next from "../i18n";
 import { usePlayerStore, useQueueStore, useToastStore } from "../stores/playerStore";
 import { useEqStore } from "../stores/eqStore";
+import { queryClient } from "../lib/queryClient";
+import { applyLikesChanged } from "../hooks/useLibrary";
 
 let lastVersion = 0;
 
@@ -65,6 +68,12 @@ export function handleRealtimeEvent(
       useEqStore.getState().setActive(eq.presetId, eq.bands);
       useEqStore.getState().setDraft(null);
       engine.applyEq(eq.bands);
+      break;
+    }
+    case RealtimeEvents.LikesChanged: {
+      // websocket.md §3 — like/unlike จากอุปกรณ์อื่น → sync hearts + likes cache
+      const like = payload as unknown as LikesChangedPayload;
+      applyLikesChanged(queryClient, like.trackId, like.liked);
       break;
     }
     // TRACK_ENDED: server advance แล้ว — TRACK_STARTED/QUEUE_UPDATED ตามมาเอง

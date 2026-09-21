@@ -18,6 +18,8 @@ export const RealtimeEvents = {
   VolumeChanged: "VOLUME_CHANGED",
   /** Phase 8 — equalizer.md §5 (active preset เปลี่ยน / preset ที่ active ถูกแก้-ลบ) */
   EqChanged: "EQ_CHANGED",
+  /** Phase 10 — websocket.md §3 (PUT/DELETE like จากอุปกรณ์อื่น) */
+  LikesChanged: "LIKES_CHANGED",
 } as const;
 
 export type RealtimeEventName = (typeof RealtimeEvents)[keyof typeof RealtimeEvents];
@@ -69,10 +71,7 @@ export interface VolumeChangedPayload extends RealtimeEnvelope {
   muted: boolean;
 }
 
-/**
- * LIKES_CHANGED (websocket.md §3) — ยังไม่มีจุด emit: likes เป็น Phase 10
- * (EQ_CHANGED ทำงานแล้วตั้งแต่ Phase 8 — ประกาศรวมไว้ที่ EqChangedPayload)
- */
+/** LIKES_CHANGED (websocket.md §3) — hub แนบ version ให้เองเหมือน event อื่น */
 export interface EqChangedPayload extends RealtimeEnvelope {
   presetId: string | null;
   bands: number[] | null;

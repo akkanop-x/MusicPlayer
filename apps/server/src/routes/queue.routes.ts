@@ -13,23 +13,28 @@ import {
 } from "@musicplayer/shared";
 import { requireAuth } from "../plugins/requireAuth.js";
 import { PlayerError, type PlayerService } from "../services/PlayerService.js";
+import { LibraryError } from "../services/LibraryError.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface QueueRoutesDeps {
   jwtSecret: string;
   player: PlayerService;
+  /** api.md #20 — POST /queue/tracks รับ { playlistId }: resolve เป็น trackIds ตามลำดับ
+   *  (throw LibraryError NOT_FOUND/FORBIDDEN ตาม api.md; ไม่ส่ง = ไม่รองรับ playlistId) */
+  getPlaylistTrackIds?: (userId: string, playlistId: string) => Promise<string[]>;
 }
 
 const trackIdsBody = z.object({
   trackIds: z.array(z.string().regex(UUID_RE)).min(1).max(50),
 });
+const playlistIdBody = z.object({ playlistId: z.string().regex(UUID_RE) });
 const moveBody = z.object({ toPosition: z.number().int().min(0) });
 
 async function run(
   app: FastifyInstance,
   reply: FastifyReply,
-  fn: () => Promise<QueueStateDTO | PlayerStateDTO>,
+  fn: () => Promise<QueueStateDTO | PlayerStateDTO | undefined>,
 ): Promise<void> {
   try {
     return void reply.status(200).send(await fn());
@@ -53,15 +58,52 @@ export const queueRoutes: FastifyPluginAsync<QueueRoutesDeps> = async (app, deps
   );
 
   app.post("/queue/tracks", (request, reply) => {
-    const parsed = trackIdsBody.safeParse(request.body);
-    if (!parsed.success) {
-      return void reply
-        .status(400)
-        .send(apiError("VALIDATION_ERROR", "trackIds (1-50 uuids) is required"));
+    const byTrackIds = trackIdsBody.safeParse(request.body);
+    if (byTrackIds.success) {
+      return run(app, reply, () =>
+        deps.player.addToQueue(request.user!.id, byTrackIds.data.trackIds),
+      );
     }
-    return run(app, reply, () =>
-      deps.player.addToQueue(request.user!.id, parsed.data.trackIds),
-    );
+    // api.md #20: เพิ่มทั้ง playlist (ตามลำดับ position) แทน trackIds
+    const byPlaylist = playlistIdBody.safeParse(request.body);
+    if (byPlaylist.success) {
+      if (!deps.getPlaylistTrackIds) {
+        return void reply
+          .status(400)
+          .send(apiError("VALIDATION_ERROR", "playlistId is not supported"));
+      }
+      return run(app, reply, async () => {
+        let trackIds: string[];
+        try {
+          trackIds = await deps.getPlaylistTrackIds!(
+            request.user!.id,
+            byPlaylist.data.playlistId,
+          );
+        } catch (error) {
+          if (error instanceof LibraryError) {
+            const status = ERROR_STATUS[error.code as ErrorCode];
+            return void reply
+              .status(status)
+              .send(apiError(error.code as ErrorCode, error.message));
+          }
+          throw error;
+        }
+        if (trackIds.length === 0) {
+          return void reply
+            .status(400)
+            .send(apiError("VALIDATION_ERROR", "playlist is empty"));
+        }
+        return deps.player.addToQueue(request.user!.id, trackIds);
+      });
+    }
+    return void reply
+      .status(400)
+      .send(
+        apiError(
+          "VALIDATION_ERROR",
+          "trackIds (1-50 uuids) or playlistId (uuid) is required",
+        ),
+      );
   });
 
   app.post("/queue/tracks/next", (request, reply) => {

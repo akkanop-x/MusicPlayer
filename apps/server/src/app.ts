@@ -9,6 +9,21 @@ import { tracksRoutes, type TracksRoutesDeps } from "./routes/tracks.routes.js";
 import { streamRoutes, type StreamRoutesDeps } from "./routes/stream.routes.js";
 import { playerRoutes, type PlayerRoutesDeps } from "./routes/player.routes.js";
 import { queueRoutes } from "./routes/queue.routes.js";
+import { playlistRoutes } from "./routes/playlist.routes.js";
+import { likeRoutes } from "./routes/like.routes.js";
+import { historyRoutes } from "./routes/history.routes.js";
+import {
+  createPlaylistService,
+  type PlaylistService,
+} from "./services/PlaylistService.js";
+import { createLikeService, type LikeService } from "./services/LikeService.js";
+import {
+  createHistoryService,
+  type HistoryService,
+} from "./services/HistoryService.js";
+import * as playlistRepo from "./repositories/playlist.repo.js";
+import * as likesRepo from "./repositories/likes.repo.js";
+import * as historyRepo from "./repositories/history.repo.js";
 import { eqRoutes } from "./routes/eq.routes.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { createSearchService } from "./services/SearchService.js";
@@ -65,6 +80,15 @@ export interface AppDeps {
   playerRepos?: Omit<import("./services/PlayerService.js").PlayerDeps, "broadcaster">;
   /** inject ฝั่ง eq endpoints (contract test) — hub buildApp สร้างเอง */
   eq?: EqService;
+  /** inject ฝั่ง library endpoints (Phase 10: playlists/likes/history) — hub ใช้ร่วมกับ player */
+  library?: LibraryServices;
+}
+
+/** Phase 10 — services ของ api.md §7–§9 (share hub กับ player สำหรับ LIKES_CHANGED) */
+export interface LibraryServices {
+  playlists: PlaylistService;
+  likes: LikeService;
+  history: HistoryService;
 }
 
 /** สร้าง Fastify instance — ใช้ทั้ง boot จริงและ unit test (fastify.inject) */
@@ -90,6 +114,9 @@ export function buildApp(
 
   // hub ตัวเดียวต่อ app — player service และ eq routes ใช้ร่วมกัน (version ต่อ user ชุดเดียว)
   const hub = new RealtimeHub();
+  // Phase 10 — library services (playlists/likes/history); player ใช้ history.record ผ่าน callback
+  const library: LibraryServices | null =
+    deps.library ?? (deps.db ? realLibraryServices(deps.db as Db, hub) : null);
 
   app.register(healthRoutes);
 
@@ -118,6 +145,9 @@ export function buildApp(
             loadQueue: (userId) => loadQueueSnapshot(deps.db as Db, userId),
             saveQueue: (userId, snapshot) =>
               saveQueueSnapshot(deps.db as Db, userId, snapshot),
+            onPlaybackEnded: library
+              ? (userId, input) => void library.history.record(userId, input)
+              : undefined,
             broadcaster: hub,
           }),
         };
@@ -139,6 +169,28 @@ export function buildApp(
       prefix: "/api/v1",
       jwtSecret: player.jwtSecret,
       player: player.player,
+      getPlaylistTrackIds: library
+        ? (userId, playlistId) => library.playlists.getTrackIds(userId, playlistId)
+        : undefined,
+    });
+  }
+
+  if (library) {
+    const jwtSecret = env.JWT_SECRET;
+    app.register(playlistRoutes, {
+      prefix: "/api/v1",
+      jwtSecret,
+      playlists: library.playlists,
+    });
+    app.register(likeRoutes, {
+      prefix: "/api/v1",
+      jwtSecret,
+      likes: library.likes,
+    });
+    app.register(historyRoutes, {
+      prefix: "/api/v1",
+      jwtSecret,
+      history: library.history,
     });
   }
 
@@ -187,6 +239,9 @@ export function buildApp(
       prefix: "/api/v1",
       jwtSecret: env.JWT_SECRET,
       search,
+      decorateLiked: library
+        ? (userId, tracks) => library.likes.decorateTracks(userId, tracks)
+        : undefined,
     });
   }
 
@@ -199,6 +254,9 @@ export function buildApp(
       prefix: "/api/v1",
       jwtSecret: env.JWT_SECRET,
       ...tracks,
+      decorateLiked: library
+        ? (userId, tracks) => library.likes.decorateTracks(userId, tracks)
+        : undefined,
     });
   }
 
@@ -228,6 +286,48 @@ export function buildApp(
   });
 
   return app;
+}
+
+function realLibraryServices(db: Db, hub: RealtimeHub): LibraryServices {
+  return {
+    playlists: createPlaylistService({
+      listPlaylists: (userId) => playlistRepo.listPlaylists(db, userId),
+      findPlaylistRow: (id) => playlistRepo.findPlaylistRow(db, id),
+      findPlaylistByName: (userId, name) =>
+        playlistRepo.findPlaylistByName(db, userId, name),
+      createPlaylist: (userId, input) =>
+        playlistRepo.createPlaylistRow(db, userId, input),
+      updatePlaylist: (id, patch) => playlistRepo.updatePlaylistById(db, id, patch),
+      deletePlaylist: (id) => playlistRepo.softDeletePlaylist(db, id),
+      listPlaylistItems: (playlistId, userId) =>
+        playlistRepo.listPlaylistItems(db, playlistId, userId),
+      appendPlaylistTracks: (playlistId, trackIds) =>
+        playlistRepo.appendPlaylistTracks(db, playlistId, trackIds),
+      removePlaylistItems: (playlistId, itemIds) =>
+        playlistRepo.removePlaylistItems(db, playlistId, itemIds),
+      reorderPlaylistItems: (playlistId, orderedItemIds) =>
+        playlistRepo.reorderPlaylistItems(db, playlistId, orderedItemIds),
+      existingTrackIds: (trackIds) => playlistRepo.findExistingTrackIds(db, trackIds),
+    }),
+    likes: createLikeService(
+      {
+        likeTrackRow: (userId, trackId) => likesRepo.likeTrackRow(db, userId, trackId),
+        unlikeTrackRow: (userId, trackId) =>
+          likesRepo.unlikeTrackRow(db, userId, trackId),
+        listLikedTracks: (userId, options) =>
+          likesRepo.listLikedTracks(db, userId, options),
+        likedTrackIds: (userId, trackIds) =>
+          likesRepo.likedTrackIds(db, userId, trackIds),
+        trackExists: (trackId) => likesRepo.findExistingTrackId(db, trackId),
+      },
+      hub,
+    ),
+    history: createHistoryService({
+      insertHistoryEntry: (userId, entry) =>
+        historyRepo.insertHistoryEntry(db, userId, entry),
+      listHistory: (userId, options) => historyRepo.listHistory(db, userId, options),
+    }),
+  };
 }
 
 function realAuthService(env: Pick<Env, "JWT_SECRET">, db: Db) {

@@ -14,6 +14,8 @@ export interface TracksRoutesDeps {
   jwtSecret: string;
   findTrackById: (id: string) => Promise<TrackDTO | null>;
   findTracksByIds: (ids: string[]) => Promise<TrackDTO[]>;
+  /** Phase 10 — เติม isLiked; ไม่ส่ง = false เสมอ */
+  decorateLiked?: (userId: string, tracks: TrackDTO[]) => Promise<TrackDTO[]>;
 }
 
 const idsQuerySchema = z.object({
@@ -41,7 +43,10 @@ export const tracksRoutes: FastifyPluginAsync<TracksRoutesDeps> = async (app, de
     if (!track) {
       return reply.status(404).send(apiError("TRACK_NOT_FOUND", "Track not found"));
     }
-    return reply.status(200).send(track);
+    const decorated = deps.decorateLiked
+      ? (await deps.decorateLiked(request.user!.id, [track]))[0]
+      : track;
+    return reply.status(200).send(decorated);
   });
 
   app.get("/tracks", async (request, reply) => {
@@ -57,7 +62,10 @@ export const tracksRoutes: FastifyPluginAsync<TracksRoutesDeps> = async (app, de
           ),
         );
     }
-    const tracks = await deps.findTracksByIds(parsed.data.ids);
+    let tracks = await deps.findTracksByIds(parsed.data.ids);
+    if (deps.decorateLiked) {
+      tracks = await deps.decorateLiked(request.user!.id, tracks);
+    }
     return reply.status(200).send({ tracks });
   });
 };

@@ -4,7 +4,7 @@ import type { TrackDTO } from "@musicplayer/shared";
 import type { Db } from "../db/client.js";
 
 /** field ชุดเดียวกับ TrackDTO (isLiked เติมตอน Phase 10) — ใช้ร่วมกันหลาย query */
-const dtoColumns = {
+export const trackDtoColumns = {
   id: tracks.id,
   title: tracks.title,
   artist: tracks.artist,
@@ -121,6 +121,24 @@ export async function updateStreamMeta(
  * ค้นใน library ที่เคย resolve — pg_trgm (GIN index มีอยู่แล้วใน migration 0000)
  * fuzzy ที่ similarity > 0.3 + substring ILIKE สำหรับคำสั้น ๆ เรียงจากคล้ายสุด
  */
+/** แถวจาก trackDtoColumns → TrackDTO (isLiked เติมโดยผู้เรียก — likes.repo) */
+export function toTrackDTO(
+  row: {
+    id: string;
+    title: string;
+    artist: string;
+    album: string | null;
+    durationMs: number;
+    isStream: boolean;
+    isSeekable: boolean;
+    artworkUrl: string | null;
+    sourceName: string;
+  },
+  isLiked: boolean,
+): TrackDTO {
+  return { ...row, isLiked };
+}
+
 export async function searchTracks(
   db: Db,
   q: string,
@@ -128,7 +146,7 @@ export async function searchTracks(
 ): Promise<TrackDTO[]> {
   const pattern = `%${q.replace(/([%_\\])/g, "\\$1")}%`;
   const rows = await db
-    .select(dtoColumns)
+    .select(trackDtoColumns)
     .from(tracks)
     .where(
       sql`(${tracks.title} ILIKE ${pattern} OR ${tracks.artist} ILIKE ${pattern} OR similarity(${tracks.title}, ${q}) > 0.3 OR similarity(${tracks.artist}, ${q}) > 0.3)`,
@@ -145,7 +163,10 @@ export async function searchTracks(
 /** batch fetch (api.md §3 endpoint 8) — คืนตามลำดับ ids ที่ส่งมา, id ที่ไม่มีตัดทิ้ง */
 export async function findTrackDTOs(db: Db, ids: string[]): Promise<TrackDTO[]> {
   if (ids.length === 0) return [];
-  const rows = await db.select(dtoColumns).from(tracks).where(inArray(tracks.id, ids));
+  const rows = await db
+    .select(trackDtoColumns)
+    .from(tracks)
+    .where(inArray(tracks.id, ids));
   const byId = new Map(
     rows.map((row) => [row.id, { ...row, isLiked: false } as TrackDTO]),
   );

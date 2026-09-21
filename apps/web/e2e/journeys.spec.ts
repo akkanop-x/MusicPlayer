@@ -1,7 +1,7 @@
 /**
- * E2E journeys — testing.md §3.6 (roadmap Phase 9 DoD) บน chromium
+ * E2E journeys — testing.md §3.6 (roadmap Phase 9/10 DoD) บน chromium
  * ทุก journey ใช้ YouTube จริงผ่าน compose stack (ยังไม่มี seed เสียงสังเคราะห์ — testing.md §4)
- * J7 (like) / J8 (playlist) / J9 (autoplay) = test.skip — backend เป็น Phase 10/11
+ * J7 (like) / J8 (playlist) = เปิดแล้วตั้งแต่ Phase 10 · J9 (autoplay) = skip — backend เป็น Phase 11
  */
 import { expect, test, type Page } from "@playwright/test";
 
@@ -52,7 +52,7 @@ async function expectAudible(page: Page): Promise<void> {
     .toBe(true);
 }
 
-test.describe.serial("journeys 1-6 + 10-11 (testing.md §3.6)", () => {
+test.describe.serial("journeys 1-8 + 10-11 (testing.md §3.6)", () => {
   let page: Page;
 
   test.beforeAll(async ({ browser }) => {
@@ -219,10 +219,112 @@ test.describe.serial("journeys 1-6 + 10-11 (testing.md §3.6)", () => {
       })
       .toBe(true);
   });
+
+  /** id ของเพลงแรกในผลค้นหา — อ่านจากปุ่ม like-* ในแถวแรก */
+  async function firstTrackId(): Promise<string> {
+    return (await page.evaluate(
+      `(() => document.querySelector('[data-testid^=like-]')?.getAttribute('data-testid').replace('like-', ''))()`,
+    )) as string;
+  }
+
+  test("J7 like → refresh → ยัง liked + หน้า liked แสดง (testing.md §3.6 #7)", async () => {
+    await search(page, QUERY);
+    const trackId = await firstTrackId();
+    expect(trackId).toBeTruthy();
+    await page.getByTestId(`like-${trackId}`).click();
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            `(() => document.querySelector('[data-testid=like-${trackId}]')?.getAttribute('aria-pressed'))()`,
+          ),
+        { timeout: 10_000 },
+      )
+      .toBe("true");
+
+    // refresh — like ต้อง persist (liked_tracks ใน Postgres)
+    await page.reload();
+    await search(page, QUERY);
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            `(() => document.querySelector('[data-testid=like-${trackId}]')?.getAttribute('aria-pressed'))()`,
+          ),
+        { timeout: 15_000 },
+      )
+      .toBe("true");
+
+    // หน้า liked แสดงเพลงที่ like
+    await page.goto("/library?tab=liked");
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          `(() => !!document.querySelector('[data-testid=library-play-${trackId}]'))()`,
+        ),
+      )
+      .toBe(true);
+  });
+
+  test("J8 playlist สร้าง → เพิ่ม 2 เพลง → เล่นทั้ง playlist ตามลำดับ (§3.6 #8)", async () => {
+    await search(page, QUERY);
+    // ชื่อ + id ของ 2 เพลงแรก (เพิ่มเข้า playlist ใหม่ตามลำดับแถว)
+    const titles = (await page.evaluate(
+      `(() => [...document.querySelectorAll('[data-testid^=play-]')].slice(0, 2).map((b) => b.querySelector('.font-medium')?.textContent ?? ''))()`,
+    )) as string[];
+    const ids = (await page.evaluate(
+      `(() => [...document.querySelectorAll('[data-testid^=add-playlist-]')].slice(0, 2).map((b) => b.getAttribute('data-testid').replace('add-playlist-', '')))()`,
+    )) as string[];
+    expect(ids).toHaveLength(2);
+
+    // เพลงแรก: สร้าง playlist ใหม่จาก dialog · เพลงที่สอง: เพิ่มเข้า playlist เดิม (option แรก)
+    await page.getByTestId(`add-playlist-${ids[0]}`).click();
+    await page.getByTestId("playlist-new-name").fill(`E2E Mix ${Date.now()}`);
+    await page.getByTestId("playlist-new-create").click();
+    await page
+      .getByTestId("playlist-new-name")
+      .waitFor({ state: "detached", timeout: 15_000 });
+    await page.getByTestId(`add-playlist-${ids[1]}`).click();
+    await page
+      .locator('[data-testid^="playlist-option-"]')
+      .first()
+      .click({ timeout: 10_000 });
+
+    // เปิด playlist จากหน้า library
+    await page.goto("/library");
+    await page
+      .locator('[data-testid^="library-playlist-"]')
+      .first()
+      .waitFor({ state: "visible", timeout: 15_000 });
+    await page.locator('[data-testid^="library-playlist-"]').first().click();
+    await page
+      .getByTestId("playlist-title")
+      .waitFor({ state: "visible", timeout: 10_000 });
+
+    // เล่นทั้ง playlist → เพลงแรกของ playlist (เพลงที่เพิ่มก่อน) ต้องเล่นเป็น current
+    await page.getByTestId("btn-play-playlist").click();
+    await expectAudible(page);
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          `(() => document.querySelector('[data-testid=queue-current]')?.textContent ?? '')()`,
+        ),
+      )
+      .toContain(titles[0]!);
+
+    // skip → เพลงถัดไปต้องเป็นเพลงที่สองของ playlist (ลำดับถูกต้อง)
+    await page.getByTestId("btn-skip").click();
+    await expectAudible(page);
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          `(() => document.querySelector('[data-testid=queue-current]')?.textContent ?? '')()`,
+        ),
+      )
+      .toContain(titles[1]!);
+  });
 });
 
-test.describe("journeys 7-9 (test.skip — backend เป็น Phase 10/11 ตาม roadmap)", () => {
-  test.skip("J7 like → refresh → ยัง liked; หน้า liked แสดง (Phase 10: LikeService)", () => {});
-  test.skip("J8 playlist สร้าง → เพิ่มเพลง → เล่นทั้ง playlist ตามลำดับ (Phase 10: PlaylistService)", () => {});
+test.describe("journey 9 (test.skip — backend เป็น Phase 11 ตาม roadmap)", () => {
   test.skip("J9 autoplay: คิวหมด → เพลงใหม่เข้า (Phase 11: Autoplay)", () => {});
 });
