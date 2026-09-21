@@ -9,7 +9,7 @@ jobs:
   lint-typecheck-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # bun = package manager + installer (เร็ว); node ยังจำเป็นสำหรับ runtime ของ
       # vitest/eslint (bun run จะเลือก node อัตโนมัติเมื่อมี node ในเครื่อง)
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
