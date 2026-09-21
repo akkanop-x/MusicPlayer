@@ -35,8 +35,12 @@ jobs:
 
       - name: Unit tests
         run: bun run test
+  # YouTube บล็อก datacenter IP ของ GitHub runner (search/Lavalink → YouTube ใช้ไม่ได้)
+  # E2E จึงรันแบบ informative เท่านั้น — verification จริงคือ local/dev machine
+  # (ดู .scratch/phase-13-testing-production/spec.md Lessons และ perf/RESULTS.md)
   e2e-smoke:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
