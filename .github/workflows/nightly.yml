@@ -34,6 +34,10 @@ jobs:
             sleep 2
           done
           echo "stack not ready"; docker compose logs --tail 50; exit 1
+      - name: Warm up resolver (cold resolve ก่อน E2E)
+        run: |
+          chmod +x apps/web/e2e/warmup.sh
+          bash apps/web/e2e/warmup.sh
       - name: Install Playwright ${{ matrix.browser }}
         run: bunx playwright install --with-deps ${{ matrix.browser }}
         working-directory: apps/web

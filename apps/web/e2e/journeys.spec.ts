@@ -59,7 +59,8 @@ async function expectAudible(page: Page): Promise<void> {
             return !!(a && !a.paused && a.currentSrc.includes('/stream/') &&
               (a.currentTime > 0 || a.error?.code === 4)); })()`,
         ),
-      { timeout: 20_000 },
+      // 45 s — cold resolve ของ YouTube บน CI runner อาจช้ากว่า local มาก
+      { timeout: 45_000 },
     )
     .toBe(true);
 }
