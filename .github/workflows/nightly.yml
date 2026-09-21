@@ -9,7 +9,7 @@ on:
 jobs:
   e2e-full:
     runs-on: ubuntu-latest
-    continue-on-error: true  # YouTube block datacenter IP — nightly เป็น informative
+    continue-on-error: true # YouTube block datacenter IP — nightly เป็น informative
     strategy:
       fail-fast: false
       matrix:
@@ -56,7 +56,7 @@ jobs:
   # Lavalink container จริง — smoke ระดับ protocol (loadtracks/decodetrack ผ่าน compose stack)
   lavalink-smoke:
     runs-on: ubuntu-latest
-    continue-on-error: true  # YouTube block datacenter IP — nightly เป็น informative
+    continue-on-error: true # YouTube block datacenter IP — nightly เป็น informative
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
