@@ -21,6 +21,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export interface PlayerRoutesDeps {
   jwtSecret: string;
   player: PlayerService;
+  /** api.md §12 — player commands 60/min/user (GET ไม่นับ; ไม่ส่ง = ไม่จำกัด) */
+  commandGuard?: { tryAcquire(userId: string): "ok" | "rate-limited" };
 }
 
 const playBody = z.object({ trackId: z.string().regex(UUID_RE) });
@@ -56,6 +58,17 @@ async function run(
 
 export const playerRoutes: FastifyPluginAsync<PlayerRoutesDeps> = async (app, deps) => {
   app.addHook("preHandler", requireAuth(deps.jwtSecret));
+  if (deps.commandGuard) {
+    // api.md §12 — command rate limit ต่อ user (GET/status ไม่นับ)
+    app.addHook("preHandler", async (request, reply) => {
+      if (request.method === "GET") return;
+      if (deps.commandGuard!.tryAcquire(request.user!.id) === "rate-limited") {
+        return reply
+          .status(ERROR_STATUS.RATE_LIMITED)
+          .send(apiError("RATE_LIMITED", "Too many player commands"));
+      }
+    });
+  }
 
   app.get("/player", (_request, reply) =>
     run(app, reply, () => deps.player.getState(_request.user!.id)),

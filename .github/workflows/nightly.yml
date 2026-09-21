@@ -1,0 +1,85 @@
+# testing.md §5 — nightly: E2E เต็ม 3 browsers + Lavalink container จริง (compose stack เดียวกับ CI)
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC ทุกวัน
+  workflow_dispatch:
+
+jobs:
+  e2e-full:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Start compose stack (Lavalink จริง + youtube-source)
+        run: docker compose up -d --build
+      - name: Wait for stack
+        run: |
+          for i in $(seq 1 60); do
+            if docker compose exec -T web wget -qO- http://server:3001/health | grep -q ok; then
+              echo "stack ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "stack not ready"; docker compose logs --tail 50; exit 1
+      - name: Install Playwright ${{ matrix.browser }}
+        run: bunx playwright install --with-deps ${{ matrix.browser }}
+        working-directory: apps/web
+      - name: E2E (${{ matrix.browser }})
+        run: bunx playwright test --project=${{ matrix.browser }}
+        working-directory: apps/web
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ matrix.browser }}
+          path: apps/web/test-results/
+          retention-days: 7
+
+  # Lavalink container จริง — smoke ระดับ protocol (loadtracks/decodetrack ผ่าน compose stack)
+  lavalink-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Start compose stack
+        run: docker compose up -d --build
+      - name: Wait for Lavalink + server
+        run: |
+          for i in $(seq 1 60); do
+            if docker compose exec -T web wget -qO- http://server:3001/health | grep -q ok; then
+              echo "stack ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "stack not ready"; docker compose logs --tail 50; exit 1
+      - name: Lavalink real smoke — search ผ่าน API (ytsearch/ytmsearch)
+        run: |
+          # สมัคร account ชั่วคราว (DB สดใน CI ไม่มี seed user) — ถ้ามีแล้ว login
+          AUTH=$(curl -s -X POST http://localhost:8080/api/v1/auth/register \
+            -H 'content-type: application/json' \
+            -d '{"email":"smoke@example.com","password":"smoke-password-123","displayName":"Smoke"}')
+          echo "$AUTH" | grep -q accessToken || \
+            AUTH=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+              -H 'content-type: application/json' \
+              -d '{"email":"smoke@example.com","password":"smoke-password-123"}')
+          TOKEN=$(echo "$AUTH" | grep -o '"accessToken":"[^"]*' | cut -d'"' -f4)
+          RES=$(curl -s "http://localhost:8080/api/v1/search?q=daft+punk" \
+            -H "authorization: Bearer $TOKEN")
+          echo "$RES" | head -c 400
+          echo "$RES" | grep -q '"tracks":\[' && echo "lavalink smoke OK"

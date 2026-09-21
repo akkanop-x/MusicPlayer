@@ -25,6 +25,8 @@ export interface QueueRoutesDeps {
   getPlaylistTrackIds?: (userId: string, playlistId: string) => Promise<string[]>;
   /** api.md #20 — POST /queue/tracks รับ { radioSeedTrackId }: เริ่ม radio (Phase 12) */
   startRadio?: (userId: string, seedTrackId: string) => Promise<QueueStateDTO>;
+  /** api.md §12 — queue commands 60/min/user (GET ไม่นับ; ไม่ส่ง = ไม่จำกัด) */
+  commandGuard?: { tryAcquire(userId: string): "ok" | "rate-limited" };
 }
 
 const trackIdsBody = z.object({
@@ -55,6 +57,16 @@ async function run(
 
 export const queueRoutes: FastifyPluginAsync<QueueRoutesDeps> = async (app, deps) => {
   app.addHook("preHandler", requireAuth(deps.jwtSecret));
+  if (deps.commandGuard) {
+    app.addHook("preHandler", async (request, reply) => {
+      if (request.method === "GET") return;
+      if (deps.commandGuard!.tryAcquire(request.user!.id) === "rate-limited") {
+        return reply
+          .status(ERROR_STATUS.RATE_LIMITED)
+          .send(apiError("RATE_LIMITED", "Too many queue commands"));
+      }
+    });
+  }
 
   app.get("/queue", (request, reply) =>
     run(app, reply, () => deps.player.getQueue(request.user!.id)),

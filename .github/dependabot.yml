@@ -1,0 +1,22 @@
+# security.md §11 — dependency updates (Dependabot)
+# (bun lockfile — Dependabot อ่าน package.json manifest ได้; lockfile update ทำผ่าน PR manual
+#  ด้วย `bun update` เมื่อ dependabot ยังไม่รองรับ bun.lockb ครบทุก ecosystem)
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/services/resolver"
+    schedule:
+      interval: "weekly"

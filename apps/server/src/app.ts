@@ -10,6 +10,8 @@ import { streamRoutes, type StreamRoutesDeps } from "./routes/stream.routes.js";
 import { playerRoutes, type PlayerRoutesDeps } from "./routes/player.routes.js";
 import { queueRoutes } from "./routes/queue.routes.js";
 import { recommendationRoutes } from "./routes/recommendation.routes.js";
+import { AccountLockout, AuthGuard } from "./security/authGuard.js";
+import { CommandGuard } from "./security/commandGuard.js";
 import { playlistRoutes } from "./routes/playlist.routes.js";
 import { likeRoutes } from "./routes/like.routes.js";
 import { historyRoutes } from "./routes/history.routes.js";
@@ -87,6 +89,8 @@ export interface AppDeps {
   eq?: EqService;
   /** inject ฝั่ง library endpoints (Phase 10: playlists/likes/history) — hub ใช้ร่วมกับ player */
   library?: LibraryServices;
+  /** inject command guard (contract test ใช้ limit ต่ำ) — ไม่ส่ง = สร้าง 60/min ให้เอง */
+  commandGuard?: CommandGuard;
   /** inject ฝั่ง recommendation/radio endpoints (Phase 12 contract test) */
   recommendation?: Omit<
     import("./routes/recommendation.routes.js").RecommendationRoutesDeps,
@@ -122,8 +126,19 @@ export function buildApp(
   // จำเป็นสำหรับอ่าน/เขียน cookie (refresh token — security.md §1, §8.6)
   app.register(cookie);
 
+  // security.md §10 — security headers ทุก response ของ API (CSP ฝั่งเว็บอยู่ที่ nginx)
+  app.addHook("onSend", async (_request, reply, payload) => {
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("referrer-policy", "strict-origin-when-cross-origin");
+    return payload;
+  });
+
   // hub ตัวเดียวต่อ app — player service และ eq routes ใช้ร่วมกัน (version ต่อ user ชุดเดียว)
   const hub = new RealtimeHub();
+  // security.md §3 / api.md §12 — rate limits (in-memory MVP; Redis เมื่อ multi-instance)
+  const loginGuard = new AuthGuard();
+  const lockout = new AccountLockout();
+  const commandGuard = deps.commandGuard ?? new CommandGuard();
   // Phase 10 — library services (playlists/likes/history); player ใช้ history.record ผ่าน callback
   const library: LibraryServices | null =
     deps.library ?? (deps.db ? realLibraryServices(deps.db as Db, hub) : null);
@@ -140,49 +155,53 @@ export function buildApp(
   app.register(healthRoutes);
 
   if (deps.auth || deps.db) {
-    const auth = deps.auth ?? realAuthDeps(env, deps.db as Db);
+    const auth = deps.auth
+      ? deps.auth
+      : { ...realAuthDeps(env, deps.db as Db), loginGuard, lockout };
     app.register(authRoutes, { prefix: "/api/v1", ...auth });
   }
 
   if (deps.player || deps.playerRepos || deps.db) {
-    const player =
-      deps.player ??
-      ((): PlayerRoutesDeps => {
-        if (deps.playerRepos) {
+    const player = deps.player
+      ? { ...deps.player, commandGuard }
+      : ((): PlayerRoutesDeps => {
+          if (deps.playerRepos) {
+            return {
+              jwtSecret: env.JWT_SECRET,
+              commandGuard,
+              player: createPlayerService({ ...deps.playerRepos, broadcaster: hub }),
+            };
+          }
           return {
             jwtSecret: env.JWT_SECRET,
-            player: createPlayerService({ ...deps.playerRepos, broadcaster: hub }),
+            commandGuard,
+            player: createPlayerService({
+              findTrack: (trackId) => findTrackDTO(deps.db as Db, trackId),
+              getSettings: (userId) => getUserSettings(deps.db as Db, userId),
+              saveSettings: (userId, patch) =>
+                saveUserSettings(deps.db as Db, userId, patch),
+              loadQueue: (userId) => loadQueueSnapshot(deps.db as Db, userId),
+              saveQueue: (userId, snapshot) =>
+                saveQueueSnapshot(deps.db as Db, userId, snapshot),
+              onPlaybackEnded: library
+                ? (userId, input) => void library.history.record(userId, input)
+                : undefined,
+              recommend: recommendation
+                ? (input) =>
+                    recommendation.getRadioTracks(
+                      {
+                        trackId: input.seedTrackId,
+                        userId: input.userId,
+                        boostArtists: input.boostArtists,
+                      },
+                      new Set(input.exclude),
+                      input.limit,
+                    )
+                : undefined,
+              broadcaster: hub,
+            }),
           };
-        }
-        return {
-          jwtSecret: env.JWT_SECRET,
-          player: createPlayerService({
-            findTrack: (trackId) => findTrackDTO(deps.db as Db, trackId),
-            getSettings: (userId) => getUserSettings(deps.db as Db, userId),
-            saveSettings: (userId, patch) =>
-              saveUserSettings(deps.db as Db, userId, patch),
-            loadQueue: (userId) => loadQueueSnapshot(deps.db as Db, userId),
-            saveQueue: (userId, snapshot) =>
-              saveQueueSnapshot(deps.db as Db, userId, snapshot),
-            onPlaybackEnded: library
-              ? (userId, input) => void library.history.record(userId, input)
-              : undefined,
-            recommend: recommendation
-              ? (input) =>
-                  recommendation.getRadioTracks(
-                    {
-                      trackId: input.seedTrackId,
-                      userId: input.userId,
-                      boostArtists: input.boostArtists,
-                    },
-                    new Set(input.exclude),
-                    input.limit,
-                  )
-              : undefined,
-            broadcaster: hub,
-          }),
-        };
-      })();
+        })();
     playerService = player.player;
     // websocket.md — Socket.IO บน app.server เดียวกัน, path /ws, room user:{userId}
     // Fastify สร้าง HTTP server จริงตอน listen → attach ใน onListen hook (engine.io
@@ -204,6 +223,7 @@ export function buildApp(
       getPlaylistTrackIds: library
         ? (userId, playlistId) => library.playlists.getTrackIds(userId, playlistId)
         : undefined,
+      commandGuard,
       // api.md #20 — POST /queue/tracks { radioSeedTrackId } → เริ่ม radio (Phase 12)
       startRadio: playerService
         ? (userId, seedTrackId) => playerService!.startRadio(userId, seedTrackId)
@@ -216,6 +236,7 @@ export function buildApp(
     app.register(recommendationRoutes, {
       prefix: "/api/v1",
       jwtSecret: env.JWT_SECRET,
+      commandGuard,
       ...(deps.recommendation ?? {
         getHomeFeed: recommendation
           ? (userId: string, limit: number) => recommendation.getHomeFeed(userId, limit)

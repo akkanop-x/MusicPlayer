@@ -22,6 +22,8 @@ export interface RecommendationRoutesDeps {
   getHomeFeed?: (userId: string, limit: number) => Promise<TrackDTO[]>;
   startRadio?: (userId: string, seedTrackId: string) => Promise<QueueStateDTO>;
   extendRadio?: (userId: string) => Promise<QueueStateDTO>;
+  /** api.md §12 — radio start/extend นับเป็น command 60/min/user */
+  commandGuard?: { tryAcquire(userId: string): "ok" | "rate-limited" };
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,6 +35,16 @@ export const recommendationRoutes: FastifyPluginAsync<
   RecommendationRoutesDeps
 > = async (app, deps) => {
   app.addHook("preHandler", requireAuth(deps.jwtSecret));
+  if (deps.commandGuard) {
+    app.addHook("preHandler", async (request, reply) => {
+      if (request.method === "GET") return;
+      if (deps.commandGuard!.tryAcquire(request.user!.id) === "rate-limited") {
+        return reply
+          .status(ERROR_STATUS.RATE_LIMITED)
+          .send(apiError("RATE_LIMITED", "Too many radio commands"));
+      }
+    });
+  }
 
   app.get("/recommendations", async (request, reply) => {
     const raw = Number((request.query as { limit?: string }).limit ?? "");

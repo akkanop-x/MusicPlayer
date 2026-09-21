@@ -35,3 +35,39 @@ jobs:
 
       - name: Unit tests
         run: bun run test
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Start compose stack (postgres + lavalink + resolver + server + web)
+        run: docker compose up -d --build
+      - name: Wait for stack
+        run: |
+          for i in $(seq 1 60); do
+            if docker compose exec -T web wget -qO- http://server:3001/health | grep -q ok; then
+              echo "stack ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "stack not ready"; docker compose logs --tail 50; exit 1
+      - name: Install Playwright chromium
+        run: bunx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: E2E smoke (chromium)
+        run: bun run e2e
+        working-directory: apps/web
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7
