@@ -17,7 +17,8 @@ function fmt(ms: number): string {
 export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }) {
   const { t } = useTranslation();
   const engine = getAudioEngine();
-  const { state, track, volume, muted, repeatMode, shuffle } = usePlayerStore();
+  const { state, track, volume, muted, repeatMode, shuffle, autoplay } =
+    usePlayerStore();
   const { positionMs, durationMs, scrubMs, setScrub } = useProgressStore();
   const pendingTrack = useIntentStore((s) => s.pendingTrack);
   const setNowPlayingOpen = useUiStore((s) => s.setNowPlayingOpen);
@@ -116,7 +117,7 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
           </button>
         </div>
 
-        {/* ขวา: seek + repeat + volume */}
+        {/* ขวา: autoplay + seek + repeat + volume */}
         <div className="hidden flex-1 items-center gap-2 lg:flex">
           <span
             data-testid="position"
@@ -149,6 +150,20 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
             {fmt(duration)}
           </span>
         </div>
+
+        <button
+          aria-label={t("player:autoplayAria")}
+          aria-pressed={autoplay}
+          data-testid="btn-autoplay"
+          onClick={() => void engine.setAutoplay(!autoplay)}
+          className={`hidden rounded-full px-2 py-1 text-xs sm:block ${
+            autoplay
+              ? "bg-emerald-500/20 text-emerald-400"
+              : "text-neutral-400 hover:bg-neutral-800"
+          }`}
+        >
+          ⚡ {t("player:autoplay")}
+        </button>
 
         <button
           aria-label={t(

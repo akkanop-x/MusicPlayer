@@ -484,3 +484,26 @@ describe("WS — EQ_CHANGED broadcast (websocket.md §3)", () => {
     other.close();
   });
 });
+
+// ---------- Phase 11: PATCH /settings { autoplay } → PlayerService (app wiring) ----------
+describe("PATCH /settings { autoplay } → player in-memory settings", () => {
+  it("ปิด autoplay ผ่าน /settings แล้ว GET /player ต้องสะท้อนค่าใหม่", async () => {
+    const app = buildApp(ENV, { playerRepos: makeRepos(), eq: makeEqService() });
+    const token = signJwt("user-1", JWT_SECRET, 60_000);
+    const auth = { authorization: `Bearer ${token}` };
+    const patched = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/settings",
+      headers: auth,
+      payload: { autoplay: false },
+    });
+    expect(patched.statusCode).toBe(200);
+    const player = await app.inject({
+      method: "GET",
+      url: "/api/v1/player",
+      headers: auth,
+    });
+    expect(player.json().autoplay).toBe(false);
+    await app.close();
+  });
+});

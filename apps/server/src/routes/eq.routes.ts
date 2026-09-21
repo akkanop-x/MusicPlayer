@@ -16,6 +16,11 @@ export interface EqRoutesDeps {
   jwtSecret: string;
   eq: EqService;
   hub: Broadcaster;
+  /**
+   * Phase 11 — PATCH /settings เปลี่ยน autoplay → บอก PlayerService (in-memory
+   * settings ต่อ user อยู่ที่ player) เพื่อ refill/prefetch และ broadcast ปุ่มข้าม tab
+   */
+  onAutoplayChanged?: (userId: string, autoplay: boolean) => void;
 }
 
 // locale เพิ่มตาม frontend.md §6.1 (สลับภาษาใน Settings → PATCH /settings { locale })
@@ -78,7 +83,12 @@ export const eqRoutes: FastifyPluginAsync<EqRoutesDeps> = async (app, deps) => {
     }
     return deps.eq
       .patchSettings(request.user!.id, parsed.data)
-      .then((settings) => reply.status(200).send(settings))
+      .then((settings) => {
+        if (parsed.data.autoplay !== undefined) {
+          deps.onAutoplayChanged?.(request.user!.id, parsed.data.autoplay);
+        }
+        return reply.status(200).send(settings);
+      })
       .catch((error) => {
         const { status, body } = toHttp(error);
         return reply.status(status).send(body);

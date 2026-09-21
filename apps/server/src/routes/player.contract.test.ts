@@ -435,3 +435,93 @@ describe("POSITION_SYNC anchoring (seek/reject ต้องไม่ติด gu
     expect(player.syncPosition("user-1", 2_000, Date.now() + 100).ok).toBe(true);
   });
 });
+
+// ---------- Phase 11: autoplay (queue.md §5 4b / §7) ----------
+
+const R1: TrackDTO = {
+  ...T1,
+  id: "33333333-3333-3333-3333-333333333333",
+  title: "Recommend One",
+};
+const R2: TrackDTO = {
+  ...T1,
+  id: "44444444-4444-4444-4444-444444444444",
+  title: "Recommend Two",
+};
+
+function autoplayCalls(deps: ReturnType<typeof makeDeps>, recommended: TrackDTO[]) {
+  const calls: Array<{
+    userId: string;
+    seedTrackId: string;
+    exclude: string[];
+    limit: number;
+  }> = [];
+  const player = createPlayerService({
+    ...deps,
+    recommend: async (input) => {
+      calls.push(input);
+      return recommended;
+    },
+  });
+  return { player, calls };
+}
+
+describe("autoplay refill (Phase 11)", () => {
+  it("skip คิวหมด + autoplay → เติมจาก recommendation, ตัวแรกเป็น current ที่เหลือเข้า upcoming", async () => {
+    const { player, calls } = autoplayCalls(makeDeps(), [R1, R2]);
+    await player.play("user-1", T1.id);
+    const queue = await player.skip("user-1");
+    expect(queue.current?.track.id).toBe(R1.id);
+    expect(queue.upcoming.map((i) => i.track.id)).toEqual([R2.id]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.seedTrackId).toBe(T1.id);
+    expect(calls[0]!.limit).toBe(10);
+    // exclude ต้องครอบคลุม session (seed ถูกย้ายไป history แล้วก็ยังต้องโดน exclude)
+    expect(calls[0]!.exclude).toContain(T1.id);
+  });
+
+  it("reportTrackEnded คิวหมด + autoplay → advance ไปเพลงแนะนำ (state PLAYING)", async () => {
+    const { player } = autoplayCalls(makeDeps(), [R1, R2]);
+    await player.play("user-1", T1.id);
+    const { ended } = await player.reportTrackEnded("user-1", T1.id);
+    expect(ended).toBe(true);
+    const state = await player.getState("user-1");
+    expect(state.track?.id).toBe(R1.id);
+    expect(state.state).toBe("PLAYING");
+  });
+
+  it("autoplay ปิด (setAutoplay) → คิวหมดจบเหมือนเดิม: skip โยน NO_NEXT, ไม่เรียก recommend", async () => {
+    const { player, calls } = autoplayCalls(makeDeps(), [R1]);
+    await player.play("user-1", T1.id);
+    await player.setAutoplay("user-1", false);
+    expect((await player.getState("user-1")).autoplay).toBe(false);
+    await expect(player.skip("user-1")).rejects.toMatchObject({ code: "NO_NEXT" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("recommend คืน empty (หรือทั้งหมดโดน exclude) → จบคิวเหมือน autoplay ปิด", async () => {
+    const { player } = autoplayCalls(makeDeps(), []);
+    await player.play("user-1", T1.id);
+    await expect(player.skip("user-1")).rejects.toMatchObject({ code: "NO_NEXT" });
+  });
+
+  it("prefetch: sync ใกล้จบ (< 30 s) → upcoming ถูกเติมใน background, current ไม่เปลี่ยน", async () => {
+    const { player, calls } = autoplayCalls(makeDeps(), [R1, R2]);
+    await player.play("user-1", T1.id); // duration 213 s
+    // เล่นไปแล้ว 190 s → เหลือ 23 s < 30 s + upcoming ว่าง → prefetch
+    expect(player.syncPosition("user-1", 190_000, Date.now()).ok).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+    const queue = await player.getQueue("user-1");
+    expect(queue.current?.track.id).toBe(T1.id);
+    expect(queue.upcoming.map((i) => i.track.id)).toEqual([R1.id, R2.id]);
+    expect(calls[0]!.seedTrackId).toBe(T1.id);
+  });
+
+  it("prefetch ไม่ยิงเมื่อ upcoming ยังเหลือ ≥ 2 หรือเหลือเวลามากกว่า 30 s", async () => {
+    const { player, calls } = autoplayCalls(makeDeps(), [R1, R2]);
+    await player.play("user-1", T1.id);
+    expect(player.syncPosition("user-1", 1_000, Date.now()).ok).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toHaveLength(0); // เหลือ 212 s
+  });
+});

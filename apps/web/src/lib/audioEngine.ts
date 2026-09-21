@@ -20,7 +20,7 @@ import {
   type TrackDTO,
   type TrackStartedPayload,
 } from "@musicplayer/shared";
-import { playerApi, queueApi } from "../api";
+import { playerApi, queueApi, settingsApi } from "../api";
 import i18next from "../i18n";
 import { createEqFilters } from "./eqGraph";
 import {
@@ -440,6 +440,27 @@ export class AudioEngine {
     }
   }
 
+  /** Phase 11 — toggle autoplay: persist ผ่าน PATCH /settings + mirror ปุ่มทันที (optimistic) */
+  async setAutoplay(enabled: boolean): Promise<void> {
+    usePlayerStore.getState().setStateDto({
+      ...usePlayerStore.getState(),
+      autoplay: enabled,
+    });
+    try {
+      const settings = await settingsApi.patch({ autoplay: enabled });
+      usePlayerStore.getState().setStateDto({
+        ...usePlayerStore.getState(),
+        autoplay: settings.autoplay,
+      });
+    } catch (error) {
+      usePlayerStore.getState().setStateDto({
+        ...usePlayerStore.getState(),
+        autoplay: !enabled,
+      });
+      useToastStore.getState().show(String((error as Error).message));
+    }
+  }
+
   // ---------- EQ (equalizer.md §3/§5) ----------
   /**
    * apply bands ที่ audio graph ทันที — null = Flat (zeros)
@@ -523,6 +544,8 @@ export class AudioEngine {
       state: p.state,
       track: p.track ?? store.track,
       positionMs: p.positionMs,
+      // Phase 11 — สถานะปุ่ม autoplay ต้องเหมือนกันทุก tab (payload เก่าไม่มี field นี้)
+      ...(p.autoplay !== undefined ? { autoplay: p.autoplay } : {}),
     });
     if (p.state === "PLAYING") {
       // เพลงใหม่ → รอ TRACK_STARTED จัดการโหลด (มาพร้อมกันเสมอ);

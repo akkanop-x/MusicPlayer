@@ -136,7 +136,9 @@
     "volume": "volume",
     "seek": "seek",
     "idle": "ยังไม่ได้เล่นอะไร",
-    "loadingTrack": "กำลังโหลด…"
+    "loadingTrack": "กำลังโหลด…",
+    "autoplay": "Autoplay",
+    "autoplayAria": "สลับเล่นต่ออัตโนมัติ"
   },
   "queue": {
     "title": "กำลังเล่น / คิวถัดไป",

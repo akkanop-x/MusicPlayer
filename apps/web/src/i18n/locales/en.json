@@ -136,7 +136,9 @@
     "volume": "volume",
     "seek": "seek",
     "idle": "Nothing playing yet",
-    "loadingTrack": "Loading…"
+    "loadingTrack": "Loading…",
+    "autoplay": "Autoplay",
+    "autoplayAria": "Toggle autoplay"
   },
   "queue": {
     "title": "Now playing / Up next",

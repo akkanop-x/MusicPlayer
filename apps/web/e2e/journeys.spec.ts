@@ -1,7 +1,7 @@
 /**
- * E2E journeys — testing.md §3.6 (roadmap Phase 9/10 DoD) บน chromium
+ * E2E journeys — testing.md §3.6 (roadmap Phase 9/10/11 DoD) บน chromium
  * ทุก journey ใช้ YouTube จริงผ่าน compose stack (ยังไม่มี seed เสียงสังเคราะห์ — testing.md §4)
- * J7 (like) / J8 (playlist) = เปิดแล้วตั้งแต่ Phase 10 · J9 (autoplay) = skip — backend เป็น Phase 11
+ * J7 (like) / J8 (playlist) เปิดตั้งแต่ Phase 10 · J9 (autoplay) เปิดตั้งแต่ Phase 11
  */
 import { expect, test, type Page } from "@playwright/test";
 
@@ -323,8 +323,42 @@ test.describe.serial("journeys 1-8 + 10-11 (testing.md §3.6)", () => {
       )
       .toContain(titles[1]!);
   });
-});
 
-test.describe("journey 9 (test.skip — backend เป็น Phase 11 ตาม roadmap)", () => {
-  test.skip("J9 autoplay: คิวหมด → เพลงใหม่เข้า (Phase 11: Autoplay)", () => {});
+  test("J9 autoplay: คิวหมด → เพลงใหม่เข้าต่อเนื่อง (testing.md §3.6 #9 / Phase 11)", async () => {
+    // autoplay เปิดเป็นค่าเริ่มของ account ใหม่ — เล่นเพลงเดียว (upcoming ว่าง)
+    // → จบแล้ว server ต้องเติมจาก recommendation แล้วเล่นต่อเอง โดยไม่ต้องกดอะไร
+    await search(page, QUERY);
+    await playFirst(page);
+    await expectAudible(page);
+    const oldTitle = (await page.evaluate(
+      `(() => document.querySelector('[data-testid=queue-current]')?.textContent ?? '')()`,
+    )) as string;
+    expect(oldTitle).toBeTruthy();
+
+    // กระโดดไป 2 วิสุดท้ายเพื่อไม่ต้องรอเพลงจบจริง (duration โหลดแล้วหลัง expectAudible)
+    await page.evaluate(
+      `(() => { const a = document.querySelector('audio'); a.currentTime = Math.max(a.duration - 2, 0); })()`,
+    );
+
+    // ended → TRACK_ENDED → server autoplay refill → TRACK_STARTED เพลงใหม่
+    // (assert ให้ cur ต้อง "ไม่ว่างและไม่ใช่เพลงเดิม" — กัน QUEUE_ENDED ที่ cur ว่างผ่าน poll)
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            `(() => { const c = document.querySelector('[data-testid=queue-current]')?.textContent ?? ''; return c.length > 0 && c !== ${JSON.stringify(oldTitle)}; })()`,
+          ),
+        { timeout: 20_000 },
+      )
+      .toBe(true);
+    await expectAudible(page);
+
+    // ปุ่ม toggle (UX): กดปิด → aria-pressed false → กดเปิดคืน (persist ผ่าน PATCH /settings)
+    const autoplayBtn = page.getByTestId("btn-autoplay");
+    await expect(autoplayBtn).toHaveAttribute("aria-pressed", "true");
+    await autoplayBtn.click();
+    await expect(autoplayBtn).toHaveAttribute("aria-pressed", "false");
+    await autoplayBtn.click();
+    await expect(autoplayBtn).toHaveAttribute("aria-pressed", "true");
+  });
 });

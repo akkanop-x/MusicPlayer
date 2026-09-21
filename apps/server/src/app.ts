@@ -30,6 +30,10 @@ import { createSearchService } from "./services/SearchService.js";
 import { createStreamService } from "./services/StreamService.js";
 import { createAuthService } from "./services/auth/AuthService.js";
 import { createPlayerService } from "./services/PlayerService.js";
+import {
+  createRuleBasedProvider,
+  realProviderQueries,
+} from "./services/recommendation/ruleBased.js";
 import { createEqService, type EqService } from "./services/EqService.js";
 import { LavalinkClient } from "./services/lavalink/LavalinkClient.js";
 import { ResolverClient } from "./services/resolver/ResolverClient.js";
@@ -117,6 +121,13 @@ export function buildApp(
   // Phase 10 — library services (playlists/likes/history); player ใช้ history.record ผ่าน callback
   const library: LibraryServices | null =
     deps.library ?? (deps.db ? realLibraryServices(deps.db as Db, hub) : null);
+  // Phase 11 — autoplay ใช้ provider ง่ายสุด (same artist → top played → liked);
+  // Phase 12 จะแทน impl เต็ม (scoring/genre) โดย interface ไม่เปลี่ยน
+  const recommendation = deps.db
+    ? createRuleBasedProvider(realProviderQueries(deps.db as Db))
+    : null;
+  /** player service ตัวเดียวต่อ app — eq routes ใช้ setAutoplay ผ่าน dep */
+  let playerService: ReturnType<typeof createPlayerService> | null = null;
 
   app.register(healthRoutes);
 
@@ -148,10 +159,19 @@ export function buildApp(
             onPlaybackEnded: library
               ? (userId, input) => void library.history.record(userId, input)
               : undefined,
+            recommend: recommendation
+              ? (input) =>
+                  recommendation.getRadioTracks(
+                    { trackId: input.seedTrackId, userId: input.userId },
+                    new Set(input.exclude),
+                    input.limit,
+                  )
+              : undefined,
             broadcaster: hub,
           }),
         };
       })();
+    playerService = player.player;
     // websocket.md — Socket.IO บน app.server เดียวกัน, path /ws, room user:{userId}
     // Fastify สร้าง HTTP server จริงตอน listen → attach ใน onListen hook (engine.io
     // ต้อง wrap request listener ของ server ที่ bind แล้วเท่านั้น)
@@ -200,6 +220,10 @@ export function buildApp(
       jwtSecret: env.JWT_SECRET,
       eq: deps.eq ?? createEqService(deps.db as Db),
       hub,
+      // PATCH /settings { autoplay } → player in-memory settings + broadcast ปุ่มข้าม tab
+      onAutoplayChanged: playerService
+        ? (userId, enabled) => void playerService!.setAutoplay(userId, enabled)
+        : undefined,
     });
   }
 

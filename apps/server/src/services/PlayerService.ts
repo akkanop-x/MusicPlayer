@@ -89,6 +89,16 @@ export interface PlayerDeps {
     userId: string,
     input: { track: TrackDTO; positionMs: number; reason: "completed" | "skip" },
   ) => void;
+  /**
+   * Phase 11 — autoplay (queue.md §5 4b/§7): คืนเพลงที่เล่นได้และไม่ซ้ำ exclude
+   * (RecommendationProvider ผ่าน app.ts — ไม่ส่ง = autoplay ปิดสนิท)
+   */
+  recommend?: (input: {
+    userId: string;
+    seedTrackId: string;
+    exclude: string[];
+    limit: number;
+  }) => Promise<TrackDTO[]>;
   /** websocket.md §3 — emit ไปยังทุก connection ของ user (RealtimeHub; ไม่ส่ง = ไม่มี realtime) */
   broadcaster?: Broadcaster;
 }
@@ -101,6 +111,9 @@ const SYNC_TOLERANCE_MS = 1_500;
 /** websocket.md §4 TRACK_STALLED: รายงานครบ 3 ครั้งใน 30 s → exception + advance */
 const STALL_THRESHOLD = 3;
 const STALL_WINDOW_MS = 30_000;
+/** queue.md §7 — autoplay refill/prefetch: extend 10 เพลง, prefetch ก่อนเพลงจบ 30 s */
+const AUTOPLAY_LIMIT = 10;
+const PREFETCH_WINDOW_MS = 30_000;
 
 interface UserPlayer {
   ctx: PlayerContext;
@@ -112,6 +125,8 @@ interface UserPlayer {
   lastSync: { positionMs: number; at: number } | null;
   /** timestamps ของ STALLED reports ที่ยังอยู่ในหน้าต่าง 30 s */
   stalls: number[];
+  /** prefetch recommendation กำลังรันอยู่ (กันยิงซ้ำทุก sync) */
+  prefetching: boolean;
 }
 
 export function createPlayerService(deps: PlayerDeps) {
@@ -177,6 +192,7 @@ export function createPlayerService(deps: PlayerDeps) {
         version: 0,
         lastSync: null,
         stalls: [],
+        prefetching: false,
       };
       players.set(userId, user);
       // restore จาก snapshot (restart backend → queue กลับมาแบบ PAUSED — player.md #7)
@@ -293,6 +309,88 @@ export function createPlayerService(deps: PlayerDeps) {
     };
   }
 
+  /** PLAYER_STATE_CHANGED payload มาตรฐาน — แนบ autoplay ให้ client sync ปุ่มข้าม tab */
+  function stateChangedPayload(user: UserPlayer): Record<string, unknown> {
+    return {
+      state: user.ctx.state,
+      track: user.queue.current?.track ?? null,
+      positionMs: user.ctx.positionMs,
+      autoplay: user.settings!.autoplay,
+    };
+  }
+
+  /**
+   * queue.md §5 4b — queue หมด (upcoming ว่าง, repeat off) + autoplay เปิด →
+   * ขอ recommendation (exclude = ทุก track ใน queue session) → ตัวแรกเป็น current,
+   * ที่เหลือเข้า upcoming; คืน true เมื่อ queue ถูกเติมสำเร็จ
+   */
+  async function autoplayRefill(
+    user: UserPlayer,
+    userId: string,
+    seedTrackId: string | null,
+  ): Promise<boolean> {
+    if (!deps.recommend || !seedTrackId || !user.settings!.autoplay) return false;
+    const exclude = queueTrackIds(user);
+    const tracks = await deps
+      .recommend({ userId, seedTrackId, exclude: [...exclude], limit: AUTOPLAY_LIMIT })
+      .catch(() => []);
+    const fresh = tracks.filter(
+      (t) =>
+        !exclude.has(t.id) &&
+        user.queue.current?.track.id !== t.id &&
+        !user.queue.upcoming.some((i) => i.track.id === t.id),
+    );
+    if (fresh.length === 0) return false;
+    const items = fresh.map((t) => makeQueueItem(t, nextOriginalPosition(user)));
+    user.queue.current = items[0]!;
+    user.queue.upcoming.push(...items.slice(1));
+    return true;
+  }
+
+  /** queue.md §7 — prefetch: upcoming < 2 และเหลือ < 30 s → เติม 10 ก่อนเพลงจบ (fire-and-forget) */
+  function maybePrefetch(user: UserPlayer, userId: string): void {
+    if (!deps.recommend || !user.settings!.autoplay || user.prefetching) return;
+    if (user.queue.upcoming.length >= 2) return;
+    const { durationMs, positionMs } = user.ctx;
+    if (durationMs === null || durationMs - positionMs > PREFETCH_WINDOW_MS) return;
+    const seedTrackId = user.queue.current?.track.id;
+    if (!seedTrackId) return;
+    user.prefetching = true;
+    void deps
+      .recommend({
+        userId,
+        seedTrackId,
+        exclude: [...queueTrackIds(user)],
+        limit: AUTOPLAY_LIMIT,
+      })
+      .then((tracks) => {
+        // ระหว่างรอ queue อาจถูก advance/clear — เติมเมื่อยังมี current และยังเล่นอยู่เท่านั้น
+        if (!user.queue.current || user.ctx.state === "IDLE") return;
+        const taken = queueTrackIds(user);
+        const fresh = tracks.filter((t) => !taken.has(t.id));
+        if (fresh.length === 0) return;
+        user.queue.upcoming.push(
+          ...fresh.map((t) => makeQueueItem(t, nextOriginalPosition(user))),
+        );
+        user.version += 1;
+        void persist(user, userId);
+        emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        user.prefetching = false;
+      });
+  }
+
+  /** trackId ทั้งหมดใน queue session (current + upcoming + history) — ใช้เป็น exclude set */
+  function queueTrackIds(user: UserPlayer): Set<string> {
+    const ids = new Set<string>();
+    if (user.queue.current) ids.add(user.queue.current.track.id);
+    for (const i of user.queue.upcoming) ids.add(i.track.id);
+    for (const i of user.queue.history) ids.add(i.track.id);
+    return ids;
+  }
+
   /** optimistic state (player.md §4): ตั้ง PLAYING ทันที ไม่รอเสียงจริง */
   function optimisticPlay(user: UserPlayer, track: TrackDTO): void {
     // track ใหม่เริ่มที่ 0 เสมอ — anchor POSITION_SYNC ของเพลงเก่าใช้เทียบไม่ได้แล้ว
@@ -311,15 +409,11 @@ export function createPlayerService(deps: PlayerDeps) {
       : null;
   }
 
-  /** ชุด event มาตรฐานตอน "เริ่มเพลงใหม่" (play/skip/previous) — websocket.md §3 */
+  /** ชุด event มาตรฐานตอน "เริ่มเพลงใหม่" (play/skip/previous/autoplay) — websocket.md §3 */
   function emitTrackStarted(user: UserPlayer, userId: string): void {
     const item = itemDto(user);
     if (!item) return;
-    emit(userId, RealtimeEvents.PlayerStateChanged, {
-      state: user.ctx.state,
-      track: item.track,
-      positionMs: user.ctx.positionMs,
-    });
+    emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
     emit(userId, RealtimeEvents.TrackStarted, { item, positionMs: 0 });
     emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
   }
@@ -359,11 +453,7 @@ export function createPlayerService(deps: PlayerDeps) {
     }
     user.ctx = transition(user.ctx, { type: "PAUSE", positionMs: user.ctx.positionMs });
     await persist(user, userId);
-    emit(userId, RealtimeEvents.PlayerStateChanged, {
-      state: user.ctx.state,
-      track: user.queue.current?.track ?? null,
-      positionMs: user.ctx.positionMs,
-    });
+    emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
     return toStateDTO(user);
   }
 
@@ -373,11 +463,7 @@ export function createPlayerService(deps: PlayerDeps) {
       throw new PlayerError("Player is not paused", "NOT_PAUSED");
     }
     user.ctx = transition(user.ctx, { type: "PLAYING" });
-    emit(userId, RealtimeEvents.PlayerStateChanged, {
-      state: user.ctx.state,
-      track: user.queue.current?.track ?? null,
-      positionMs: user.ctx.positionMs,
-    });
+    emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
     return toStateDTO(user);
   }
 
@@ -418,11 +504,7 @@ export function createPlayerService(deps: PlayerDeps) {
     // anchor เดิม (ก่อน seek) sync ถัดไปของ client จะโดน reject ตลอดกาล แล้ว wsServer
     // ส่ง POSITION_UPDATED ค่าเก่ากลับมาดึงเสียงกลับทุก 5 s = เพลงวนซ้ำช่วงเดิม
     user.lastSync = { positionMs: user.ctx.positionMs, at: Date.now() };
-    emit(userId, RealtimeEvents.PlayerStateChanged, {
-      state: user.ctx.state,
-      track: user.queue.current?.track ?? null,
-      positionMs: user.ctx.positionMs,
-    });
+    emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
     emit(userId, RealtimeEvents.PositionUpdated, {
       positionMs: user.ctx.positionMs,
     });
@@ -441,8 +523,13 @@ export function createPlayerService(deps: PlayerDeps) {
     if (!user.queue.current && user.queue.upcoming.length === 0) {
       throw new PlayerError("Queue is empty", "NO_NEXT");
     }
+    const seedTrackId = user.queue.current?.track.id ?? null;
     if (user.queue.current) recordPlaybackEnd(user, userId, "skip");
-    const played = queueAdvance(user.queue, reason, user.settings!.repeatMode);
+    let played = queueAdvance(user.queue, reason, user.settings!.repeatMode);
+    // queue.md §5 4b — คิวหมด + autoplay → เติมจาก recommendation แทนการจบ
+    if (!played && (await autoplayRefill(user, userId, seedTrackId))) {
+      played = user.queue.current;
+    }
     if (!played) throw new PlayerError("No next track in queue", "NO_NEXT");
     user.version += 1;
     optimisticPlay(user, played.track);
@@ -491,11 +578,7 @@ export function createPlayerService(deps: PlayerDeps) {
     user.settings = { ...user.settings!, repeatMode: mode };
     await deps.saveSettings(userId, { repeatMode: mode }).catch(() => undefined);
     await persist(user, userId);
-    emit(userId, RealtimeEvents.PlayerStateChanged, {
-      state: user.ctx.state,
-      track: user.queue.current?.track ?? null,
-      positionMs: user.ctx.positionMs,
-    });
+    emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
     return toStateDTO(user);
   }
 
@@ -509,11 +592,7 @@ export function createPlayerService(deps: PlayerDeps) {
     user.version += 1;
     await deps.saveSettings(userId, { shuffle: enabled }).catch(() => undefined);
     await persist(user, userId);
-    emit(userId, RealtimeEvents.PlayerStateChanged, {
-      state: user.ctx.state,
-      track: user.queue.current?.track ?? null,
-      positionMs: user.ctx.positionMs,
-    });
+    emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
     emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
     return toQueueDTO(user);
   }
@@ -614,13 +693,23 @@ export function createPlayerService(deps: PlayerDeps) {
     await persist(user, userId);
     emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
     if (scope === "all") {
-      emit(userId, RealtimeEvents.PlayerStateChanged, {
-        state: user.ctx.state,
-        track: null,
-        positionMs: 0,
-      });
+      emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
     }
     return toQueueDTO(user);
+  }
+
+  /**
+   * Phase 11 — toggle autoplay (api.md #39 PATCH /settings เป็นผู้ persist;
+   * ที่นี่อัปเดต in-memory + broadcast ให้ทุก tab เห็นปุ่มสถานะเดียวกัน)
+   */
+  async function setAutoplay(
+    userId: string,
+    enabled: boolean,
+  ): Promise<PlayerStateDTO> {
+    const user = await getUser(userId);
+    user.settings = { ...user.settings!, autoplay: enabled };
+    emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
+    return toStateDTO(user);
   }
 
   // ---------- realtime client → server (websocket.md §4) ----------
@@ -664,19 +753,16 @@ export function createPlayerService(deps: PlayerDeps) {
     }
     user.ctx.positionMs = positionMs;
     user.lastSync = { positionMs, at: now };
+    maybePrefetch(user, userId);
     return { ok: true, positionMs: user.ctx.positionMs };
   }
 
-  /** ชุด event ตอนจบคิว (ไม่มีเพลงถัดไป + repeat off) — websocket.md QUEUE_ENDED */
+  /** ชุด event ตอนจบคิว (ไม่มีเพลงถัดไป + repeat off + autoplay ไม่เติมได้) — websocket.md QUEUE_ENDED */
   function emitQueueEnded(user: UserPlayer, userId: string): void {
     user.ctx = { ...emptyCtx(), state: "IDLE" };
     emit(userId, RealtimeEvents.QueueEnded, {});
     emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
-    emit(userId, RealtimeEvents.PlayerStateChanged, {
-      state: "IDLE",
-      track: null,
-      positionMs: 0,
-    });
+    emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
   }
 
   /**
@@ -690,7 +776,11 @@ export function createPlayerService(deps: PlayerDeps) {
     const user = await getUser(userId);
     if (user.queue.current?.track.id !== trackId) return { ended: false };
     recordPlaybackEnd(user, userId, "completed");
-    const played = queueAdvance(user.queue, "completed", user.settings!.repeatMode);
+    let played = queueAdvance(user.queue, "completed", user.settings!.repeatMode);
+    // queue.md §5 4b — เพลงสุดท้ายจบ + autoplay → เติมเพลงใหม่ต่อทันที (gap = 1 round trip)
+    if (!played && (await autoplayRefill(user, userId, trackId))) {
+      played = user.queue.current;
+    }
     if (!played) {
       emitQueueEnded(user, userId);
       await persist(user, userId);
@@ -718,6 +808,7 @@ export function createPlayerService(deps: PlayerDeps) {
     user.stalls.push(now);
     if (user.stalls.length < STALL_THRESHOLD) return { exception: false };
     user.stalls = [];
+    const seedTrackId = user.queue.current?.track.id ?? null;
     recordPlaybackEnd(user, userId, "skip");
     const current = itemDto(user);
     emit(userId, RealtimeEvents.TrackException, {
@@ -725,7 +816,10 @@ export function createPlayerService(deps: PlayerDeps) {
       code: "SOURCE_ERROR",
       message: "เล่นเพลงนี้ไม่ได้ — เดินหน้าต่ออัตโนมัติ",
     });
-    const played = queueAdvance(user.queue, "skip", user.settings!.repeatMode);
+    let played = queueAdvance(user.queue, "skip", user.settings!.repeatMode);
+    if (!played && (await autoplayRefill(user, userId, seedTrackId))) {
+      played = user.queue.current;
+    }
     if (!played) {
       emitQueueEnded(user, userId);
       await persist(user, userId);
@@ -750,6 +844,7 @@ export function createPlayerService(deps: PlayerDeps) {
     setVolume,
     setRepeatMode,
     setShuffleEnabled,
+    setAutoplay,
     addToQueue,
     addNextToQueue,
     removeQueueItem,
