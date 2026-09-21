@@ -38,6 +38,7 @@ const STATE: PlayerStateDTO = {
   repeatMode: "off",
   shuffle: false,
   autoplay: true,
+  radio: false,
 };
 
 function renderAt(path: string) {

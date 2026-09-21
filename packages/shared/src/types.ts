@@ -35,6 +35,8 @@ export interface PlayerStateDTO {
   repeatMode: RepeatMode;
   shuffle: boolean;
   autoplay: boolean;
+  /** Phase 12 — radio กำลังเปิดอยู่ (queue ถูกแทนด้วยสถานีแนวเพลง) */
+  radio: boolean;
 }
 
 /** ชิ้นเดียวใน queue — id สุ่มต่อชิ้น (track ซ้ำได้, remove/move by id — queue.md §1) */

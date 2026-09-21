@@ -23,12 +23,15 @@ export interface QueueRoutesDeps {
   /** api.md #20 — POST /queue/tracks รับ { playlistId }: resolve เป็น trackIds ตามลำดับ
    *  (throw LibraryError NOT_FOUND/FORBIDDEN ตาม api.md; ไม่ส่ง = ไม่รองรับ playlistId) */
   getPlaylistTrackIds?: (userId: string, playlistId: string) => Promise<string[]>;
+  /** api.md #20 — POST /queue/tracks รับ { radioSeedTrackId }: เริ่ม radio (Phase 12) */
+  startRadio?: (userId: string, seedTrackId: string) => Promise<QueueStateDTO>;
 }
 
 const trackIdsBody = z.object({
   trackIds: z.array(z.string().regex(UUID_RE)).min(1).max(50),
 });
 const playlistIdBody = z.object({ playlistId: z.string().regex(UUID_RE) });
+const radioSeedBody = z.object({ radioSeedTrackId: z.string().regex(UUID_RE) });
 const moveBody = z.object({ toPosition: z.number().int().min(0) });
 
 async function run(
@@ -96,12 +99,24 @@ export const queueRoutes: FastifyPluginAsync<QueueRoutesDeps> = async (app, deps
         return deps.player.addToQueue(request.user!.id, trackIds);
       });
     }
+    // api.md #20: เริ่ม radio จาก seed track (queue ถูกแทนด้วยสถานี — Phase 12)
+    const byRadioSeed = radioSeedBody.safeParse(request.body);
+    if (byRadioSeed.success) {
+      if (!deps.startRadio) {
+        return void reply
+          .status(400)
+          .send(apiError("VALIDATION_ERROR", "radioSeedTrackId is not supported"));
+      }
+      return run(app, reply, () =>
+        deps.startRadio!(request.user!.id, byRadioSeed.data.radioSeedTrackId),
+      );
+    }
     return void reply
       .status(400)
       .send(
         apiError(
           "VALIDATION_ERROR",
-          "trackIds (1-50 uuids) or playlistId (uuid) is required",
+          "trackIds (1-50 uuids), playlistId (uuid) or radioSeedTrackId (uuid) is required",
         ),
       );
   });

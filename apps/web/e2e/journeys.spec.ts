@@ -1,7 +1,7 @@
 /**
  * E2E journeys — testing.md §3.6 (roadmap Phase 9/10/11 DoD) บน chromium
  * ทุก journey ใช้ YouTube จริงผ่าน compose stack (ยังไม่มี seed เสียงสังเคราะห์ — testing.md §4)
- * J7 (like) / J8 (playlist) เปิดตั้งแต่ Phase 10 · J9 (autoplay) เปิดตั้งแต่ Phase 11
+ * J7 (like) / J8 (playlist) เปิดตั้งแต่ Phase 10 · J9 (autoplay) Phase 11 · J12 (recs/radio) Phase 12
  */
 import { expect, test, type Page } from "@playwright/test";
 
@@ -52,7 +52,7 @@ async function expectAudible(page: Page): Promise<void> {
     .toBe(true);
 }
 
-test.describe.serial("journeys 1-8 + 10-11 (testing.md §3.6)", () => {
+test.describe.serial("journeys 1-12 (testing.md §3.6)", () => {
   let page: Page;
 
   test.beforeAll(async ({ browser }) => {
@@ -360,5 +360,22 @@ test.describe.serial("journeys 1-8 + 10-11 (testing.md §3.6)", () => {
     await expect(autoplayBtn).toHaveAttribute("aria-pressed", "false");
     await autoplayBtn.click();
     await expect(autoplayBtn).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("J12 home feed แนะนำสำหรับคุณ → เล่นได้ + เริ่ม radio (Phase 12)", async () => {
+    // เพลงที่เล่นมาทั้งเซสชันอยู่ใน history → home feed ต้องไม่ว่าง
+    await page.goto("/");
+    await page.getByTestId("home-recs").waitFor({ state: "visible", timeout: 20_000 });
+    const rows = page.getByTestId("home-rec-row");
+    expect(await rows.count()).toBeGreaterThan(0);
+
+    // ▶ เล่นเพลงแนะนำได้จริง
+    await rows.first().getByTestId("home-rec-play").click();
+    await expectAudible(page);
+
+    // 📻 เริ่ม radio จากเพลงแนะนำ → queue ถูกแทน + badge radio โชว์
+    await rows.first().getByTestId("home-rec-radio").click();
+    await expectAudible(page);
+    await expect(page.getByTestId("player-radio")).toBeVisible({ timeout: 20_000 });
   });
 });

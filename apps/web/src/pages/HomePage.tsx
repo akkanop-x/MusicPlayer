@@ -1,10 +1,12 @@
-/** HomePage — greeting ตามเวลา + shortcut ไปทุกหน้า + สรุปคิวปัจจุบัน (recs จริงเป็น Phase 12) */
+/** HomePage — greeting ตามเวลา + "แนะนำสำหรับคุณ" (Phase 12) + shortcut + คิวปัจจุบัน */
 import { useEffect } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { getAudioEngine } from "../lib/audioEngine";
 import { usePlayerStore, useQueueStore } from "../stores/playerStore";
-import { authApi } from "../api";
+import { authApi, recommendationsApi } from "../api";
+import type { TrackDTO } from "@musicplayer/shared";
 
 function greetingKey(hour: number): string {
   if (hour < 5) return "home:greetingNight";
@@ -37,6 +39,81 @@ const CARDS = [
     icon: "⚙️",
   },
 ] as const;
+
+/** "แนะนำสำหรับคุณ" — home feed จาก GET /recommendations (เล่นได้ + เริ่ม radio ได้) */
+function RecommendationsSection() {
+  const { t } = useTranslation();
+  const engine = getAudioEngine();
+  const { data } = useQuery({
+    queryKey: ["recommendations"],
+    queryFn: () => recommendationsApi.list(10),
+  });
+  const tracks = data?.tracks ?? [];
+
+  // §7 cold start — ไม่มี like/history → empty state แนะนำให้ค้นหา/like ก่อน
+  if (tracks.length === 0) {
+    return (
+      <section className="mt-8" data-testid="home-recs-empty">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+          {t("home:recommended")}
+        </h2>
+        <p className="mt-3 text-sm text-neutral-500">{t("home:recommendedEmpty")}</p>
+      </section>
+    );
+  }
+
+  const play = (track: TrackDTO) => void engine.play(track);
+  const radio = (track: TrackDTO) => void engine.startRadio(track);
+
+  return (
+    <section className="mt-8" data-testid="home-recs">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+        {t("home:recommended")}
+      </h2>
+      <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {tracks.map((track) => (
+          <li
+            key={track.id}
+            data-testid="home-rec-row"
+            className="flex items-center gap-3 rounded-xl bg-neutral-900 p-3"
+          >
+            {track.artworkUrl ? (
+              <img
+                src={track.artworkUrl}
+                alt=""
+                className="h-12 w-12 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="h-12 w-12 rounded-lg bg-neutral-800" />
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{track.title}</span>
+              <span className="block truncate text-xs text-neutral-400">
+                {track.artist}
+              </span>
+            </span>
+            <button
+              data-testid="home-rec-play"
+              aria-label={`${t("home:recPlay")}: ${track.title}`}
+              onClick={() => play(track)}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+            >
+              ▶
+            </button>
+            <button
+              data-testid="home-rec-radio"
+              aria-label={`${t("home:recRadio")}: ${track.title}`}
+              onClick={() => radio(track)}
+              className="rounded-lg bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700"
+            >
+              📻
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 export default function HomePage() {
   const { t } = useTranslation();
@@ -86,6 +163,8 @@ export default function HomePage() {
           </Link>
         ))}
       </section>
+
+      <RecommendationsSection />
 
       <section className="mt-8" data-testid="home-queue">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">

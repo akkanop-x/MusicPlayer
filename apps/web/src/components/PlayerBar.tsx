@@ -17,7 +17,7 @@ function fmt(ms: number): string {
 export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }) {
   const { t } = useTranslation();
   const engine = getAudioEngine();
-  const { state, track, volume, muted, repeatMode, shuffle, autoplay } =
+  const { state, track, volume, muted, repeatMode, shuffle, autoplay, radio } =
     usePlayerStore();
   const { positionMs, durationMs, scrubMs, setScrub } = useProgressStore();
   const pendingTrack = useIntentStore((s) => s.pendingTrack);
@@ -150,6 +150,17 @@ export default function PlayerBar({ onToast }: { onToast?: (m: string) => void }
             {fmt(duration)}
           </span>
         </div>
+
+        {/* Phase 12 — badge สถานะ radio (player.md: มาจาก stateChangedPayload.radio) */}
+        {radio && (
+          <span
+            data-testid="player-radio"
+            title={t("player:radioOn")}
+            className="hidden rounded-full bg-emerald-500/20 px-2 py-1 text-xs text-emerald-400 sm:block"
+          >
+            📻
+          </span>
+        )}
 
         <button
           aria-label={t("player:autoplayAria")}

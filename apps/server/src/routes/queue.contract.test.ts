@@ -186,6 +186,39 @@ describe("POST /queue/tracks + /queue/tracks/next", () => {
   });
 });
 
+describe("POST /queue/tracks { radioSeedTrackId } (Phase 12)", () => {
+  it("เริ่ม radio: current = seed + radio: true ใน GET /player", async () => {
+    const { app, authed } = makeHarness();
+    const res = await app.inject({
+      ...post("/api/v1/queue/tracks", { radioSeedTrackId: T2.id }),
+      headers: authed,
+    });
+    expect(res.statusCode).toBe(200);
+    const queue = res.json();
+    expect(queue.current.track.id).toBe(T2.id);
+    // harness นี้ไม่มี provider → upcoming ว่าง แต่ radio ยัง active
+    expect(queue.upcoming).toEqual([]);
+    const state = await app.inject({
+      method: "GET",
+      url: "/api/v1/player",
+      headers: authed,
+    });
+    expect(state.json().radio).toBe(true);
+    await app.close();
+  });
+
+  it("body ไม่ตรง shape ใด → 400 พร้อมข้อความครอบ radioSeedTrackId", async () => {
+    const { app, authed } = makeHarness();
+    const res = await app.inject({
+      ...post("/api/v1/queue/tracks", {}),
+      headers: authed,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.message).toContain("radioSeedTrackId");
+    await app.close();
+  });
+});
+
 describe("PATCH /queue/items/:id/move + DELETE /queue/items/:id", () => {
   async function seedQueue(
     app: ReturnType<typeof buildApp>,

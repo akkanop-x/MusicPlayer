@@ -9,6 +9,7 @@ import { tracksRoutes, type TracksRoutesDeps } from "./routes/tracks.routes.js";
 import { streamRoutes, type StreamRoutesDeps } from "./routes/stream.routes.js";
 import { playerRoutes, type PlayerRoutesDeps } from "./routes/player.routes.js";
 import { queueRoutes } from "./routes/queue.routes.js";
+import { recommendationRoutes } from "./routes/recommendation.routes.js";
 import { playlistRoutes } from "./routes/playlist.routes.js";
 import { likeRoutes } from "./routes/like.routes.js";
 import { historyRoutes } from "./routes/history.routes.js";
@@ -86,6 +87,11 @@ export interface AppDeps {
   eq?: EqService;
   /** inject ฝั่ง library endpoints (Phase 10: playlists/likes/history) — hub ใช้ร่วมกับ player */
   library?: LibraryServices;
+  /** inject ฝั่ง recommendation/radio endpoints (Phase 12 contract test) */
+  recommendation?: Omit<
+    import("./routes/recommendation.routes.js").RecommendationRoutesDeps,
+    "jwtSecret"
+  >;
 }
 
 /** Phase 10 — services ของ api.md §7–§9 (share hub กับ player สำหรับ LIKES_CHANGED) */
@@ -121,10 +127,12 @@ export function buildApp(
   // Phase 10 — library services (playlists/likes/history); player ใช้ history.record ผ่าน callback
   const library: LibraryServices | null =
     deps.library ?? (deps.db ? realLibraryServices(deps.db as Db, hub) : null);
-  // Phase 11 — autoplay ใช้ provider ง่ายสุด (same artist → top played → liked);
-  // Phase 12 จะแทน impl เต็ม (scoring/genre) โดย interface ไม่เปลี่ยน
+  // Phase 11/12 — autoplay + radio ใช้ RuleBasedProvider เต็ม (candidate pool/scoring/
+  // genre constraint §2.1.1); interface เดิม (getRadioTracks/getHomeFeed) ไม่เปลี่ยน
   const recommendation = deps.db
-    ? createRuleBasedProvider(realProviderQueries(deps.db as Db))
+    ? createRuleBasedProvider(realProviderQueries(deps.db as Db), {
+        log: (message) => app.log.warn({ message }, "recommendation"),
+      })
     : null;
   /** player service ตัวเดียวต่อ app — eq routes ใช้ setAutoplay ผ่าน dep */
   let playerService: ReturnType<typeof createPlayerService> | null = null;
@@ -162,7 +170,11 @@ export function buildApp(
             recommend: recommendation
               ? (input) =>
                   recommendation.getRadioTracks(
-                    { trackId: input.seedTrackId, userId: input.userId },
+                    {
+                      trackId: input.seedTrackId,
+                      userId: input.userId,
+                      boostArtists: input.boostArtists,
+                    },
                     new Set(input.exclude),
                     input.limit,
                   )
@@ -192,6 +204,30 @@ export function buildApp(
       getPlaylistTrackIds: library
         ? (userId, playlistId) => library.playlists.getTrackIds(userId, playlistId)
         : undefined,
+      // api.md #20 — POST /queue/tracks { radioSeedTrackId } → เริ่ม radio (Phase 12)
+      startRadio: playerService
+        ? (userId, seedTrackId) => playerService!.startRadio(userId, seedTrackId)
+        : undefined,
+    });
+  }
+
+  if (deps.player || deps.playerRepos || deps.db || deps.recommendation) {
+    // api.md §11 — home feed + radio start/extend (Phase 12)
+    app.register(recommendationRoutes, {
+      prefix: "/api/v1",
+      jwtSecret: env.JWT_SECRET,
+      ...(deps.recommendation ?? {
+        getHomeFeed: recommendation
+          ? (userId: string, limit: number) => recommendation.getHomeFeed(userId, limit)
+          : undefined,
+        startRadio: playerService
+          ? (userId: string, seedTrackId: string) =>
+              playerService!.startRadio(userId, seedTrackId)
+          : undefined,
+        extendRadio: playerService
+          ? (userId: string) => playerService!.extendRadio(userId)
+          : undefined,
+      }),
     });
   }
 

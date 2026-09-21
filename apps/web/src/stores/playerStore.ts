@@ -22,6 +22,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   repeatMode: "off",
   shuffle: false,
   autoplay: true,
+  radio: false,
   setStateDto: (dto) => set(dto),
   patchState: (patch) => set(patch),
 }));

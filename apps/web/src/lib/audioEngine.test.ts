@@ -32,6 +32,7 @@ function dto(state: PlayerStateDTO["state"], track: TrackDTO | null): PlayerStat
     repeatMode: "off",
     shuffle: false,
     autoplay: true,
+    radio: false,
   };
 }
 

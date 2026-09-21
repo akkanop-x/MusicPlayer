@@ -18,6 +18,7 @@ export const ERROR_CODES = [
   "NO_NEXT",
   "NO_PREVIOUS",
   "ITEM_IS_CURRENT",
+  "NO_RADIO",
   "EQ_PRESET_NAME_TAKEN",
   "NAME_TAKEN",
   "INTERNAL",
@@ -59,6 +60,8 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   NO_NEXT: 409,
   NO_PREVIOUS: 409,
   ITEM_IS_CURRENT: 409,
+  /** POST /radio/extend โดยไม่มี radio เปิดอยู่ (api.md §11 #47) — Phase 12 */
+  NO_RADIO: 409,
   EQ_PRESET_NAME_TAKEN: 409,
   /** playlist ชื่อซ้ำ (api.md §7 #27) — Phase 10 */
   NAME_TAKEN: 409,

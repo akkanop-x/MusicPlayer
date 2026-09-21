@@ -41,6 +41,10 @@
     "queueSummary": "Current queue",
     "queueUpcoming": "{{count}} track(s) in queue",
     "queueEmpty": "Queue is empty — search a song and add it",
+    "recommended": "Recommended for you",
+    "recommendedEmpty": "No recommendations yet — search and like a song to start",
+    "recPlay": "Play this song",
+    "recRadio": "Start radio from this song",
     "emptyTitle": "Nothing playing yet",
     "emptyDesc": "Search for your first track"
   },
@@ -138,7 +142,8 @@
     "idle": "Nothing playing yet",
     "loadingTrack": "Loading…",
     "autoplay": "Autoplay",
-    "autoplayAria": "Toggle autoplay"
+    "autoplayAria": "Toggle autoplay",
+    "radioOn": "Radio on"
   },
   "queue": {
     "title": "Now playing / Up next",

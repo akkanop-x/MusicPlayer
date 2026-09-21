@@ -20,7 +20,7 @@ import {
   type TrackDTO,
   type TrackStartedPayload,
 } from "@musicplayer/shared";
-import { playerApi, queueApi, settingsApi } from "../api";
+import { playerApi, queueApi, radioApi, settingsApi } from "../api";
 import i18next from "../i18n";
 import { createEqFilters } from "./eqGraph";
 import {
@@ -233,6 +233,34 @@ export class AudioEngine {
     // TRACK_STARTED broadcast อาจมาถึงก่อน REST response → src โหลดไปแล้ว ไม่ต้องรีโหลด
     if (this.currentTrackId() !== track.id) this.startStream(track, dto);
     void this.refreshQueue();
+  }
+
+  /**
+   * เริ่ม radio จาก seed (POST /radio/start — server แทน queue ทั้งก้อน: current = seed,
+   * upcoming = เพลงแนวเดียวกัน; ใช้ startStream เท่านั้น ห้าม /player/play ซ้ำ)
+   */
+  async startRadio(track: TrackDTO): Promise<void> {
+    this.ensureAudioGraph();
+    const seq = ++this.playSeq;
+    this.teardownStream();
+    try {
+      const queue = await radioApi.start(track.id);
+      if (seq !== this.playSeq) return;
+      useQueueStore.getState().setQueueDto(queue);
+      useIntentStore.getState().setPendingTrack(track);
+      usePlayerStore.getState().setStateDto({
+        ...usePlayerStore.getState(),
+        state: "PLAYING",
+        track,
+        positionMs: 0,
+        radio: true, // server set radio แล้ว — WS event อาจช้ากว่า REST ตอบ
+      });
+      this.startStream(track);
+    } catch (error) {
+      if (seq === this.playSeq) {
+        useToastStore.getState().show(String((error as Error).message));
+      }
+    }
   }
 
   /**
@@ -546,6 +574,8 @@ export class AudioEngine {
       positionMs: p.positionMs,
       // Phase 11 — สถานะปุ่ม autoplay ต้องเหมือนกันทุก tab (payload เก่าไม่มี field นี้)
       ...(p.autoplay !== undefined ? { autoplay: p.autoplay } : {}),
+      // Phase 12 — badge radio sync ข้าม tab
+      ...(p.radio !== undefined ? { radio: p.radio } : {}),
     });
     if (p.state === "PLAYING") {
       // เพลงใหม่ → รอ TRACK_STARTED จัดการโหลด (มาพร้อมกันเสมอ);

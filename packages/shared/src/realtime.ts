@@ -35,6 +35,8 @@ export interface PlayerStateChangedPayload extends RealtimeEnvelope {
   positionMs: number;
   /** Phase 11 — sync ปุ่ม autoplay ข้าม tab (optional เพื่อ backward compatible) */
   autoplay?: boolean;
+  /** Phase 12 — radio กำลังเปิดอยู่ (optional เพื่อ backward compatible) */
+  radio?: boolean;
 }
 
 export interface TrackStartedPayload extends RealtimeEnvelope {

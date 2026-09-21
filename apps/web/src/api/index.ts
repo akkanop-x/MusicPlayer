@@ -155,6 +155,19 @@ export const historyApi = {
   },
 };
 
+/** Phase 12 — home feed "แนะนำสำหรับคุณ" (api.md §11 #45) */
+export const recommendationsApi = {
+  list: (limit?: number) =>
+    api<{ tracks: TrackDTO[] }>(`/recommendations${limit ? `?limit=${limit}` : ""}`),
+};
+
+/** Phase 12 — radio (api.md §11 #46/47): เริ่มสถานีจาก seed / เติม upcoming */
+export const radioApi = {
+  start: (seedTrackId: string) =>
+    apiJson<QueueStateDTO>("POST", "/radio/start", { seedTrackId }),
+  extend: () => apiJson<QueueStateDTO>("POST", "/radio/extend", {}),
+};
+
 /** ฟื้นเซสชันตอนโหลดหน้า — ลอง refresh เงียบ ๆ แล้วดึง /me */
 export async function hydrateSession(): Promise<boolean> {
   try {

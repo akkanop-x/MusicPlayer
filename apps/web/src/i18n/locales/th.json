@@ -41,6 +41,10 @@
     "queueSummary": "คิวปัจจุบัน",
     "queueUpcoming": "{{count}} เพลงในคิว",
     "queueEmpty": "ยังไม่มีคิว — ค้นหาเพลงแล้วกดเพิ่มเข้าคิวได้เลย",
+    "recommended": "แนะนำสำหรับคุณ",
+    "recommendedEmpty": "ยังไม่มีคำแนะนำ — ค้นหาเพลงแล้วกด like เพื่อเริ่มต้น",
+    "recPlay": "เล่นเพลงนี้",
+    "recRadio": "เริ่ม radio จากเพลงนี้",
     "emptyTitle": "ยังไม่มีอะไรเล่น",
     "emptyDesc": "ค้นหาเพลงแรกของคุณเลย"
   },
@@ -138,7 +142,8 @@
     "idle": "ยังไม่ได้เล่นอะไร",
     "loadingTrack": "กำลังโหลด…",
     "autoplay": "Autoplay",
-    "autoplayAria": "สลับเล่นต่ออัตโนมัติ"
+    "autoplayAria": "สลับเล่นต่ออัตโนมัติ",
+    "radioOn": "กำลังเล่น Radio"
   },
   "queue": {
     "title": "กำลังเล่น / คิวถัดไป",

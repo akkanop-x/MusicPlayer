@@ -44,6 +44,7 @@ export class PlayerError extends Error {
       | "NO_NEXT"
       | "NO_PREVIOUS"
       | "ITEM_IS_CURRENT"
+      | "NO_RADIO"
       | "VALIDATION_ERROR"
       | "NOT_FOUND",
   ) {
@@ -90,14 +91,16 @@ export interface PlayerDeps {
     input: { track: TrackDTO; positionMs: number; reason: "completed" | "skip" },
   ) => void;
   /**
-   * Phase 11 — autoplay (queue.md §5 4b/§7): คืนเพลงที่เล่นได้และไม่ซ้ำ exclude
-   * (RecommendationProvider ผ่าน app.ts — ไม่ส่ง = autoplay ปิดสนิท)
+   * Phase 11/12 — autoplay + radio (queue.md §5 4b/§7, recommendation.md §6): คืนเพลง
+   * ที่เล่นได้และไม่ซ้ำ exclude (RecommendationProvider ผ่าน app.ts — ไม่ส่ง = ปิดสนิท)
    */
   recommend?: (input: {
     userId: string;
     seedTrackId: string;
     exclude: string[];
     limit: number;
+    /** §6 adaptive — ศิลปินที่เพลงเล่นจบใน radio นี้ (provider ให้ weight เพิ่ม) */
+    boostArtists?: string[];
   }) => Promise<TrackDTO[]>;
   /** websocket.md §3 — emit ไปยังทุก connection ของ user (RealtimeHub; ไม่ส่ง = ไม่มี realtime) */
   broadcaster?: Broadcaster;
@@ -127,6 +130,8 @@ interface UserPlayer {
   stalls: number[];
   /** prefetch recommendation กำลังรันอยู่ (กันยิงซ้ำทุก sync) */
   prefetching: boolean;
+  /** Phase 12 — radio ที่กำลังเปิด (seed ตั้งต้น + ศิลปินที่เล่นจบเพื่อ adaptive §6); null = ปิด */
+  radio: { seedTrackId: string; playedArtists: string[] } | null;
 }
 
 export function createPlayerService(deps: PlayerDeps) {
@@ -193,6 +198,7 @@ export function createPlayerService(deps: PlayerDeps) {
         lastSync: null,
         stalls: [],
         prefetching: false,
+        radio: null,
       };
       players.set(userId, user);
       // restore จาก snapshot (restart backend → queue กลับมาแบบ PAUSED — player.md #7)
@@ -293,6 +299,7 @@ export function createPlayerService(deps: PlayerDeps) {
       repeatMode: user.settings!.repeatMode,
       shuffle: user.settings!.shuffle,
       autoplay: user.settings!.autoplay,
+      radio: user.radio !== null,
     };
   }
 
@@ -309,30 +316,40 @@ export function createPlayerService(deps: PlayerDeps) {
     };
   }
 
-  /** PLAYER_STATE_CHANGED payload มาตรฐาน — แนบ autoplay ให้ client sync ปุ่มข้าม tab */
+  /** PLAYER_STATE_CHANGED payload มาตรฐาน — แนบ autoplay/radio ให้ client sync ข้าม tab */
   function stateChangedPayload(user: UserPlayer): Record<string, unknown> {
     return {
       state: user.ctx.state,
       track: user.queue.current?.track ?? null,
       positionMs: user.ctx.positionMs,
       autoplay: user.settings!.autoplay,
+      radio: user.radio !== null,
     };
   }
 
   /**
-   * queue.md §5 4b — queue หมด (upcoming ว่าง, repeat off) + autoplay เปิด →
-   * ขอ recommendation (exclude = ทุก track ใน queue session) → ตัวแรกเป็น current,
-   * ที่เหลือเข้า upcoming; คืน true เมื่อ queue ถูกเติมสำเร็จ
+   * queue.md §5 4b — queue หมด (upcoming ว่าง, repeat off) + autoplay เปิด (หรือ radio
+   * กำลังเปิด — radio เล่นต่อเนื่องแม้ toggle autoplay ปิด) → ขอ recommendation
+   * (exclude = ทุก track ใน queue session) → ตัวแรกเป็น current, ที่เหลือเข้า upcoming;
+   * seed = radio seed ของสถานี (คงแนวเพลงเดิม) ไม่ใช่เพลงที่เพิ่งจบ; คืน true เมื่อเติมสำเร็จ
    */
   async function autoplayRefill(
     user: UserPlayer,
     userId: string,
     seedTrackId: string | null,
   ): Promise<boolean> {
-    if (!deps.recommend || !seedTrackId || !user.settings!.autoplay) return false;
+    if (!deps.recommend || (!user.settings!.autoplay && !user.radio)) return false;
+    const seed = user.radio?.seedTrackId ?? seedTrackId;
+    if (!seed) return false;
     const exclude = queueTrackIds(user);
     const tracks = await deps
-      .recommend({ userId, seedTrackId, exclude: [...exclude], limit: AUTOPLAY_LIMIT })
+      .recommend({
+        userId,
+        seedTrackId: seed,
+        exclude: [...exclude],
+        limit: AUTOPLAY_LIMIT,
+        boostArtists: user.radio?.playedArtists,
+      })
       .catch(() => []);
     const fresh = tracks.filter(
       (t) =>
@@ -349,11 +366,11 @@ export function createPlayerService(deps: PlayerDeps) {
 
   /** queue.md §7 — prefetch: upcoming < 2 และเหลือ < 30 s → เติม 10 ก่อนเพลงจบ (fire-and-forget) */
   function maybePrefetch(user: UserPlayer, userId: string): void {
-    if (!deps.recommend || !user.settings!.autoplay || user.prefetching) return;
+    if (!deps.recommend || (!user.settings!.autoplay && !user.radio)) return;
     if (user.queue.upcoming.length >= 2) return;
     const { durationMs, positionMs } = user.ctx;
     if (durationMs === null || durationMs - positionMs > PREFETCH_WINDOW_MS) return;
-    const seedTrackId = user.queue.current?.track.id;
+    const seedTrackId = user.radio?.seedTrackId ?? user.queue.current?.track.id;
     if (!seedTrackId) return;
     user.prefetching = true;
     void deps
@@ -362,6 +379,7 @@ export function createPlayerService(deps: PlayerDeps) {
         seedTrackId,
         exclude: [...queueTrackIds(user)],
         limit: AUTOPLAY_LIMIT,
+        boostArtists: user.radio?.playedArtists,
       })
       .then((tracks) => {
         // ระหว่างรอ queue อาจถูก advance/clear — เติมเมื่อยังมี current และยังเล่นอยู่เท่านั้น
@@ -434,6 +452,7 @@ export function createPlayerService(deps: PlayerDeps) {
     const track = await fetchTrack(trackId);
     // เพลงเดิมถูกแทนกลางคัน → บันทึก history เป็น skip ณ ตำแหน่งล่าสุด
     if (user.queue.current) recordPlaybackEnd(user, userId, "skip");
+    user.radio = null; // เล่นเพลงเอง = ออกจาก radio
     playNow(user.queue, makeQueueItem(track, nextOriginalPosition(user)));
     user.version += 1;
     optimisticPlay(user, track);
@@ -688,7 +707,10 @@ export function createPlayerService(deps: PlayerDeps) {
   ): Promise<QueueStateDTO> {
     const user = await getUser(userId);
     clearQueue(user.queue, scope);
-    if (scope === "all") user.ctx = { ...emptyCtx(), state: "IDLE" };
+    if (scope === "all") {
+      user.ctx = { ...emptyCtx(), state: "IDLE" };
+      user.radio = null;
+    }
     user.version += 1;
     await persist(user, userId);
     emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
@@ -710,6 +732,76 @@ export function createPlayerService(deps: PlayerDeps) {
     user.settings = { ...user.settings!, autoplay: enabled };
     emit(userId, RealtimeEvents.PlayerStateChanged, stateChangedPayload(user));
     return toStateDTO(user);
+  }
+
+  // ---------- radio (api.md §11 #46/47 — recommendation.md §6) ----------
+
+  const RADIO_START_LIMIT = 20;
+
+  /**
+   * POST /radio/start — queue ถูกแทนด้วย radio: current = seed, upcoming = เพลงแนวเดียว
+   * กับ seed (genre constraint อยู่ที่ provider §2.1.1) จำนวน 20; ขณะ radio active
+   * refill/prefetch ทำงานเหมือน autoplay (ใช้ seed ของสถานี) แม้ toggle autoplay ปิด
+   */
+  async function startRadio(
+    userId: string,
+    seedTrackId: string,
+  ): Promise<QueueStateDTO> {
+    const user = await getUser(userId);
+    const seedTrack = await fetchTrack(seedTrackId);
+    if (user.queue.current) recordPlaybackEnd(user, userId, "skip");
+    user.queue = emptyQueue();
+    user.radio = { seedTrackId: seedTrack.id, playedArtists: [] };
+    user.queue.current = makeQueueItem(seedTrack, nextOriginalPosition(user));
+    const exclude = queueTrackIds(user);
+    const tracks = deps.recommend
+      ? await deps
+          .recommend({
+            userId,
+            seedTrackId: seedTrack.id,
+            exclude: [...exclude],
+            limit: RADIO_START_LIMIT,
+          })
+          .catch(() => [])
+      : [];
+    const fresh = tracks.filter(
+      (t) =>
+        !exclude.has(t.id) && !user.queue.upcoming.some((i) => i.track.id === t.id),
+    );
+    user.queue.upcoming.push(
+      ...fresh.map((t) => makeQueueItem(t, nextOriginalPosition(user))),
+    );
+    user.version += 1;
+    optimisticPlay(user, seedTrack);
+    await persist(user, userId);
+    emitTrackStarted(user, userId);
+    return toQueueDTO(user);
+  }
+
+  /** POST /radio/extend — เติม upcoming เพิ่ม 10 ตาม seed ของสถานี (ต้องมี radio อยู่ก่อน) */
+  async function extendRadio(userId: string): Promise<QueueStateDTO> {
+    const user = await getUser(userId);
+    if (!user.radio || !deps.recommend) {
+      throw new PlayerError("No radio is active", "NO_RADIO");
+    }
+    const fresh = (
+      await deps
+        .recommend({
+          userId,
+          seedTrackId: user.radio.seedTrackId,
+          exclude: [...queueTrackIds(user)],
+          limit: AUTOPLAY_LIMIT,
+          boostArtists: user.radio.playedArtists,
+        })
+        .catch(() => [])
+    ).filter((t) => !queueTrackIds(user).has(t.id));
+    user.queue.upcoming.push(
+      ...fresh.map((t) => makeQueueItem(t, nextOriginalPosition(user))),
+    );
+    user.version += 1;
+    await persist(user, userId);
+    emit(userId, RealtimeEvents.QueueUpdated, { queue: toQueueDTO(user) });
+    return toQueueDTO(user);
   }
 
   // ---------- realtime client → server (websocket.md §4) ----------
@@ -775,6 +867,13 @@ export function createPlayerService(deps: PlayerDeps) {
   ): Promise<{ ended: boolean }> {
     const user = await getUser(userId);
     if (user.queue.current?.track.id !== trackId) return { ended: false };
+    // §6 adaptive — เพลง radio เล่นจบ (ไม่ skip) → จด artist เพื่อ weight ในการ extend ถัดไป
+    if (user.radio && user.queue.current) {
+      const artist = user.queue.current.track.artist;
+      if (!user.radio.playedArtists.includes(artist)) {
+        user.radio.playedArtists.push(artist);
+      }
+    }
     recordPlaybackEnd(user, userId, "completed");
     let played = queueAdvance(user.queue, "completed", user.settings!.repeatMode);
     // queue.md §5 4b — เพลงสุดท้ายจบ + autoplay → เติมเพลงใหม่ต่อทันที (gap = 1 round trip)
@@ -845,6 +944,8 @@ export function createPlayerService(deps: PlayerDeps) {
     setRepeatMode,
     setShuffleEnabled,
     setAutoplay,
+    startRadio,
+    extendRadio,
     addToQueue,
     addNextToQueue,
     removeQueueItem,

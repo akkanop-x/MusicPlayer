@@ -176,6 +176,23 @@ export async function findTrackDTOs(db: Db, ids: string[]): Promise<TrackDTO[]> 
   });
 }
 
+/** เหมือน findTrackDTOs แต่แนบ genres (recommendation engine — genre constraint §2.1.1) */
+export async function findTrackCandidates(
+  db: Db,
+  ids: string[],
+): Promise<Array<TrackDTO & { genres: string[] }>> {
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({ ...trackDtoColumns, genres: tracks.genres })
+    .from(tracks)
+    .where(inArray(tracks.id, ids));
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [{ ...toTrackDTO(row, false), genres: row.genres ?? [] }] : [];
+  });
+}
+
 /** เติม genres ของ track (genre enrichment — database.md §2.2) */
 export async function updateGenres(
   db: Db,

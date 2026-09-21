@@ -123,6 +123,7 @@ describe("GET /api/v1/player", () => {
       repeatMode: "off",
       shuffle: false,
       autoplay: true,
+      radio: false,
     });
     await app.close();
   });
@@ -523,5 +524,107 @@ describe("autoplay refill (Phase 11)", () => {
     expect(player.syncPosition("user-1", 1_000, Date.now()).ok).toBe(true);
     await new Promise((r) => setTimeout(r, 0));
     expect(calls).toHaveLength(0); // เหลือ 212 s
+  });
+});
+
+// ---------- radio (Phase 12 — api.md §11, recommendation.md §6) ----------
+
+const R3: TrackDTO = {
+  ...T1,
+  id: "55555555-5555-5555-5555-555555555555",
+  title: "Recommend Three",
+};
+const R4: TrackDTO = {
+  ...T1,
+  id: "66666666-6666-6666-6666-666666666666",
+  title: "Recommend Four",
+};
+
+/** recommend คืนทีละ batch ตามลำดับครั้งที่เรียก (start → batch 0, extend → batch 1 …) */
+function radioBatches(batches: TrackDTO[][]) {
+  const deps = makeDeps();
+  const calls: Array<{
+    userId: string;
+    seedTrackId: string;
+    exclude: string[];
+    limit: number;
+    boostArtists?: string[];
+  }> = [];
+  const player = createPlayerService({
+    ...deps,
+    recommend: async (input) => {
+      calls.push(input);
+      return batches[calls.length - 1] ?? [];
+    },
+  });
+  return { player, calls };
+}
+
+describe("radio (Phase 12)", () => {
+  it("startRadio แทน queue: current = seed, upcoming = จาก recommend (limit 20) + radio: true", async () => {
+    const { player, calls } = radioBatches([[R1, R2]]);
+    const queue = await player.startRadio("user-1", T1.id);
+    expect(queue.current?.track.id).toBe(T1.id);
+    expect(queue.upcoming.map((i) => i.track.id)).toEqual([R1.id, R2.id]);
+    expect(calls[0]!.seedTrackId).toBe(T1.id);
+    expect(calls[0]!.limit).toBe(20);
+    expect(calls[0]!.exclude).toContain(T1.id);
+    expect((await player.getState("user-1")).radio).toBe(true);
+    expect((await player.getState("user-1")).state).toBe("PLAYING");
+  });
+
+  it("extendRadio เติม upcoming ตาม seed ของสถานี (limit 10, exclude ครอบ session)", async () => {
+    const { player, calls } = radioBatches([
+      [R1, R2],
+      [R3, R4],
+    ]);
+    await player.startRadio("user-1", T1.id);
+    const queue = await player.extendRadio("user-1");
+    expect(queue.upcoming.map((i) => i.track.id)).toEqual([R1.id, R2.id, R3.id, R4.id]);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.limit).toBe(10);
+    expect(calls[1]!.exclude).toEqual(expect.arrayContaining([T1.id, R1.id, R2.id]));
+  });
+
+  it("extendRadio โดยไม่มี radio → NO_RADIO", async () => {
+    const { player } = radioBatches([[R1]]);
+    await expect(player.extendRadio("user-1")).rejects.toMatchObject({
+      code: "NO_RADIO",
+    });
+  });
+
+  it("radio เล่นต่อเนื่องแม้ toggle autoplay ปิด + seed คงที่ seed ของสถานี", async () => {
+    const { player, calls } = radioBatches([
+      [R1, R2],
+      [R3, R4],
+    ]);
+    await player.setAutoplay("user-1", false);
+    await player.startRadio("user-1", T1.id); // current T1, upcoming R1 R2
+    await player.skip("user-1"); // → R1
+    await player.skip("user-1"); // → R2
+    await player.skip("user-1"); // คิวหมด → refill ด้วย seed ของสถานี (T1) ไม่ใช่ R2
+    const last = calls[calls.length - 1]!;
+    expect(last.seedTrackId).toBe(T1.id);
+    expect(last.exclude).toContain(R2.id);
+    expect((await player.getQueue("user-1")).current?.track.id).toBe(R3.id);
+  });
+
+  it("§6 adaptive: เพลง radio เล่นจบ → extend ส่ง boostArtists ศิลปินที่เล่นจบ", async () => {
+    const { player, calls } = radioBatches([[R1], [R2]]);
+    await player.startRadio("user-1", T1.id); // T1.artist = "Artist"
+    await player.reportTrackEnded("user-1", T1.id); // → R1
+    await player.extendRadio("user-1");
+    expect(calls[1]!.boostArtists).toContain("Artist");
+  });
+
+  it("เล่นเพลงเอง (play) หรือ clear all → radio ถูกปิด", async () => {
+    const { player } = radioBatches([[R1]]);
+    await player.startRadio("user-1", T1.id);
+    await player.play("user-1", T1.id);
+    expect((await player.getState("user-1")).radio).toBe(false);
+
+    await player.startRadio("user-1", T1.id);
+    await player.clear("user-1", "all");
+    expect((await player.getState("user-1")).radio).toBe(false);
   });
 });
