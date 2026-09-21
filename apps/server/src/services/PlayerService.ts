@@ -295,6 +295,8 @@ export function createPlayerService(deps: PlayerDeps) {
 
   /** optimistic state (player.md §4): ตั้ง PLAYING ทันที ไม่รอเสียงจริง */
   function optimisticPlay(user: UserPlayer, track: TrackDTO): void {
+    // track ใหม่เริ่มที่ 0 เสมอ — anchor POSITION_SYNC ของเพลงเก่าใช้เทียบไม่ได้แล้ว
+    user.lastSync = null;
     user.ctx = {
       ...transition(user.ctx, { type: "LOAD", trackId: track.id }),
       state: "PLAYING",
@@ -412,6 +414,10 @@ export function createPlayerService(deps: PlayerDeps) {
         positionMs: user.ctx.positionMs,
       });
     }
+    // POSITION_SYNC guard (×1.2) ต้องเทียบกับ anchor ใหม่ ณ ตำแหน่ง seek — ถ้าปล่อย
+    // anchor เดิม (ก่อน seek) sync ถัดไปของ client จะโดน reject ตลอดกาล แล้ว wsServer
+    // ส่ง POSITION_UPDATED ค่าเก่ากลับมาดึงเสียงกลับทุก 5 s = เพลงวนซ้ำช่วงเดิม
+    user.lastSync = { positionMs: user.ctx.positionMs, at: Date.now() };
     emit(userId, RealtimeEvents.PlayerStateChanged, {
       state: user.ctx.state,
       track: user.queue.current?.track ?? null,
@@ -622,29 +628,43 @@ export function createPlayerService(deps: PlayerDeps) {
   /**
    * POSITION_SYNC — client ส่งทุก 5 s ขณะเล่น + ตอน pause/seek/ended
    * validate: เดินหน้าไม่เร็วกว่า real-time × 1.2 (+ tolerance), ≤ duration, ต้องมี current
-   * ผิด → คืน "rejected" (ws handler ตอบ ack แล้ว emit POSITION_UPDATED ให้ client กลับมาตรง)
+   * คืนตำแหน่ง authoritative ของ server เสมอ — ok:false แล้ว caller ใช้ค่านี้ emit
+   * POSITION_UPDATED จูน client กลับมาทันที (ไม่ต้อง getState ย้อนหลัง = ไม่มี race gap)
    */
   function syncPosition(
     userId: string,
     positionMs: number,
     now = Date.now(),
-  ): "ok" | "rejected" {
+  ): { ok: boolean; positionMs: number } {
     const user = players.get(userId);
-    if (!user || !user.queue.current) return "rejected";
-    if (!Number.isFinite(positionMs) || positionMs < 0) return "rejected";
+    if (!user || !user.queue.current) {
+      return { ok: false, positionMs: 0 };
+    }
+    if (!Number.isFinite(positionMs) || positionMs < 0) {
+      return { ok: false, positionMs: user.ctx.positionMs };
+    }
+
+    const reject = (): { ok: boolean; positionMs: number } => {
+      // re-anchor ที่ตำแหน่ง server ปัจจุบันทุกครั้งที่ reject — client ถูกจูนกลับมาแล้ว
+      // ต้องเริ่มเทียบจาก anchor ใหม่ มิฉะนั้น sync ถัด ๆ ไปโดน reject ตลอดกาล
+      // (anchor เก่าไม่มีทาง advance เพราะ accepted sync ไม่มีอีก) = ลูปจูนกลับทุก 5 s
+      user.lastSync = { positionMs: user.ctx.positionMs, at: now };
+      return { ok: false, positionMs: user.ctx.positionMs };
+    };
+
     const durationMs = user.ctx.durationMs;
-    if (durationMs !== null && positionMs > durationMs) return "rejected";
+    if (durationMs !== null && positionMs > durationMs) return reject();
 
     const playing = user.ctx.state === "PLAYING" || user.ctx.state === "BUFFERING";
     if (playing && user.lastSync) {
       const elapsed = now - user.lastSync.at;
       const maxAllowed =
         user.lastSync.positionMs + elapsed * SYNC_SPEED_FACTOR + SYNC_TOLERANCE_MS;
-      if (positionMs > maxAllowed) return "rejected";
+      if (positionMs > maxAllowed) return reject();
     }
     user.ctx.positionMs = positionMs;
     user.lastSync = { positionMs, at: now };
-    return "ok";
+    return { ok: true, positionMs: user.ctx.positionMs };
   }
 
   /** ชุด event ตอนจบคิว (ไม่มีเพลงถัดไป + repeat off) — websocket.md QUEUE_ENDED */
@@ -671,7 +691,6 @@ export function createPlayerService(deps: PlayerDeps) {
     if (user.queue.current?.track.id !== trackId) return { ended: false };
     recordPlaybackEnd(user, userId, "completed");
     const played = queueAdvance(user.queue, "completed", user.settings!.repeatMode);
-    user.lastSync = null;
     if (!played) {
       emitQueueEnded(user, userId);
       await persist(user, userId);

@@ -397,3 +397,41 @@ describe("volume/repeat", () => {
     await app.close();
   });
 });
+
+/**
+ * POSITION_SYNC anchoring — บั๊กจริง: seek ไปหน้าแล้ว server ไม่ re-anchor lastSync
+ * → sync ถัดไปของ client โดน guard ×1.2 reject ตลอดกาล → wsServer ส่ง POSITION_UPDATED
+ * ค่าเก่ากลับมาดึง audio.currentTime กลับทุก 5 s = เพลงวนซ้ำช่วงเดิมไม่สิ้นสุด
+ */
+describe("POSITION_SYNC anchoring (seek/reject ต้องไม่ติด guard ×1.2)", () => {
+  it("seek ไปหน้า → sync ถัดไปตามเวลาจริงต้อง ok (เดิม: reject ตลอด → เสียงเด้งกลับทุก 5 s)", async () => {
+    const player = createPlayerService(makeDeps());
+    await player.play("user-1", T1.id);
+    const t0 = Date.now();
+    expect(player.syncPosition("user-1", 1_000, t0).ok).toBe(true);
+    await player.seek("user-1", 178_203);
+    expect(player.syncPosition("user-1", 183_203, Date.now() + 5_000).ok).toBe(true);
+    expect(player.syncPosition("user-1", 188_203, Date.now() + 10_000).ok).toBe(true);
+  });
+
+  it("sync ที่เร็วผิดปกติ → reject พร้อมตำแหน่ง authoritative; client ถูกจูนกลับแล้ว sync ถัดไป ok", async () => {
+    const player = createPlayerService(makeDeps());
+    await player.play("user-1", T1.id);
+    const t0 = Date.now();
+    expect(player.syncPosition("user-1", 1_000, t0).ok).toBe(true);
+    // เคลม 120 s ใน 100 ms — เร็วเกิน real-time ×1.2
+    const rejected = player.syncPosition("user-1", 120_000, t0 + 100);
+    expect(rejected.ok).toBe(false);
+    expect(rejected.positionMs).toBe(1_000); // ค่านี้คือ payload POSITION_UPDATED
+    // client โดนจูนกลับมาที่ 1_000 แล้วเล่นต่ออีก 5 s → ต้องกลับมา ok (ไม่ติด rejection loop)
+    expect(player.syncPosition("user-1", 6_000, t0 + 5_200).ok).toBe(true);
+  });
+
+  it("เปลี่ยน track → anchor รีเซ็ต, sync แรกของเพลงใหม่ผ่านทันที", async () => {
+    const player = createPlayerService(makeDeps());
+    await player.play("user-1", T1.id);
+    expect(player.syncPosition("user-1", 100_000, Date.now()).ok).toBe(true);
+    await player.play("user-1", LIVE.id); // track ใหม่เริ่มที่ 0 — ห้ามเทียบ anchor เพลงเก่า
+    expect(player.syncPosition("user-1", 2_000, Date.now() + 100).ok).toBe(true);
+  });
+});

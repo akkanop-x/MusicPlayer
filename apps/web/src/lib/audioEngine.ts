@@ -152,16 +152,6 @@ export class AudioEngine {
     });
     audio.addEventListener("waiting", () => {
       if (!audio.src) return; // จาก E2E J6: empty element ยังยิง waiting → BUFFERING ปลอม
-      const w = window as unknown as Record<string, unknown>;
-      w.__waitingDbg = [
-        ...((w.__waitingDbg as
-          Array<{ src: string; ctx: string; track: string | null }> | undefined) ?? []),
-        {
-          src: audio.src.slice(-25),
-          ctx: this.ctx.state,
-          track: usePlayerStore.getState().track?.title ?? null,
-        },
-      ];
       this.ctx = transition(this.ctx, {
         type: "WAITING",
         positionMs: this.currentPositionMs(),
@@ -426,12 +416,6 @@ export class AudioEngine {
       ...usePlayerStore.getState(),
       volume,
       muted,
-      state: usePlayerStore.getState().state,
-      track: usePlayerStore.getState().track,
-      positionMs: usePlayerStore.getState().positionMs,
-      repeatMode: usePlayerStore.getState().repeatMode,
-      shuffle: usePlayerStore.getState().shuffle,
-      autoplay: usePlayerStore.getState().autoplay,
     });
     void playerApi.setVolume(volume).catch(() => undefined);
   }

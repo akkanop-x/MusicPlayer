@@ -63,13 +63,13 @@ export function attachRealtime(
       (payload: { positionMs?: unknown }, ack?: (res: PositionSyncAck) => void) => {
         const positionMs =
           typeof payload?.positionMs === "number" ? payload.positionMs : NaN;
+        // syncPosition คืนตำแหน่ง authoritative พร้อมผล — emit ทันที ไม่มี async gap
+        // (เดิม getState ย้อนหลังทำให้ correction ได้รับ state ที่ mutate ไปแล้ว)
         const result = deps.player.syncPosition(userId, positionMs);
-        ack?.({ ok: result === "ok" });
-        if (result === "rejected") {
-          void deps.player.getState(userId).then((state) => {
-            deps.hub.emitToSocket(socket, userId, RealtimeEvents.PositionUpdated, {
-              positionMs: state.positionMs,
-            });
+        ack?.({ ok: result.ok });
+        if (!result.ok) {
+          deps.hub.emitToSocket(socket, userId, RealtimeEvents.PositionUpdated, {
+            positionMs: result.positionMs,
           });
         }
       },
