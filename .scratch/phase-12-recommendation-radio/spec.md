@@ -37,8 +37,8 @@
    upcoming, dupes 0, **genre violation 0** (ตรวจ `tracks.genres` ทุก track ใน Postgres —
    normalized เทียบ seed genres) · genre constraint เป็น hard filter พิสูจน์ด้วย unit tests
    (candidate ต่างแนวถูกตัดแม้ same artist; relax เฉพาะผลว่าง — มีผลบางส่วนห้ามคลาย)
-   + extension อัตโนมัติผ่าน refill/prefetch เดิม (radio เล่นต่อแม้ autoplay toggle ปิด —
-   contract test "radio เล่นต่อเนื่องแม้ toggle autoplay ปิด")
+   - extension อัตโนมัติผ่าน refill/prefetch เดิม (radio เล่นต่อแม้ autoplay toggle ปิด —
+     contract test "radio เล่นต่อเนื่องแม้ toggle autoplay ปิด")
 2. **ไม่แนะนำเพลงใน exclude set** — unit tests (exclude ถูกส่งถึง query + output filter),
    contract tests (refill/extend exclude ครอบ current+upcoming+history), radio extend
    dedupe กับ queue — real data: dupes 0
